@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<div id="container"></div>
+<script type="module">
+
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+    // Declare the chart dimensions and margins.
+
+    const data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/techniques/techniques.json")
+
+    const dataList = Object.entries(data.techniques)
+        dataList.sort( (a,b) => a[0].localeCompare(b[0]))
+
+    const allTags = dataList.flatMap( (it) => it[1].tags || []  )
+    let tags = [...new Set(allTags)]
+
+    tags.sort()
+
+    d3.select("body")
+        .append("h1")
+        .text("All techniques")
+
+    d3.select("body")
+        .append("ul")
+        .selectAll("li")
+        .data(dataList)
+        .enter()
+        .append("li")
+        .text( it => `${it[1]["name"]} -- ${it[1]["tags"] || ""}`)
+
+
+    tags.forEach( (tag) => {
+        let filteredTools = dataList.filter( (it) => (it[1]["tags"] || []).includes(tag) )
+
+        d3.select("body")
+            .append("h2")
+            .text(tag)
+
+        d3.select("body")
+            .append("ul")
+            .selectAll("li")
+            .data(filteredTools)
+            .enter()
+            .append("li")
+            .text( it => `${it[1]["name"]}`)
+            .append("a")
+            .text("link")
+            .attr("href", it => (it[1]["references"] || [""])[0] )
+            .attr("style", "margin-left: 0.5ex")
+    })
+
+
+
+</script>
