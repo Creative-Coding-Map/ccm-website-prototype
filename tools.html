@@ -1,47 +1,51 @@
 <!DOCTYPE html>
 <div id="container"></div>
 <head>
-<script src="//cdn.jsdelivr.net/npm/force-graph"></script>
-<style>
+    <script src="//cdn.jsdelivr.net/npm/force-graph"></script>
+    <style>
 
-    body {
-        margin:20px
-    }
-    #graph {
-        width: 400px;
-        height: 400px;
-        z-index: -100;
-    }
-</style>
+        body {
+            margin: 20px
+        }
+
+        #graph {
+            width: 400px;
+            height: 400px;
+            z-index: -100;
+        }
+    </style>
 </head>
 <body>
 <div id="graph"></div>
 <script type="module">
 
 
-
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     //https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js
 
-//        import {ForceGraph} from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js";
+    //        import {ForceGraph} from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js";
 
     const data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json")
 
     const dataList = Object.entries(data.tools)
-        dataList.sort( (a,b) => a[0].localeCompare(b[0]))
+    dataList.sort((a, b) => a[0].localeCompare(b[0]))
 
 
-    const allTags = dataList.flatMap( (it) => it[1].tags || []  )
+    const allTags = dataList.flatMap((it) => it[1].tags || [])
     let tags = [...new Set(allTags)]
-    const toolNodes = dataList.map((it, idx) => { return { "id":idx, "name":it[0], "type":"tool" }} )
-    const tagNodes = tags.map( (it,idx) => { return { "id": idx + toolNodes.length, "name":it, "type":"tag"}})
+    const toolNodes = dataList.map((it, idx) => {
+        return {"id": idx, "name": it[0], "type": "tool"}
+    })
+    const tagNodes = tags.map((it, idx) => {
+        return {"id": idx + toolNodes.length, "name": it, "type": "tag"}
+    })
 
     const links = [];
     const nodes = toolNodes.concat(tagNodes)
-    dataList.forEach( n => {
-        (n[1].tags || []).forEach( t => {
-            const tn = tagNodes.find( it => it.name === t)
-            const tooln = toolNodes.find( it => it.name === n[0])
+    dataList.forEach(n => {
+        (n[1].tags || []).forEach(t => {
+            const tn = tagNodes.find(it => it.name === t)
+            const tooln = toolNodes.find(it => it.name === n[0])
             const link = {
                 source: tn.id,
                 target: tooln.id,
@@ -52,15 +56,36 @@
     })
 
 
-
-    const gData = { "nodes": nodes, "links": links}
+    const gData = {"nodes": nodes, "links": links}
 
     const Graph = new ForceGraph()
-        (document.getElementById('graph'))
-            .height(400)
-            .linkCurvature('curvature')
-            .nodeAutoColorBy('type')
-            .graphData(gData);
+    (document.getElementById('graph'))
+        .height(400)
+        .linkCurvature('curvature')
+        .nodeAutoColorBy('type')
+        .graphData(gData)
+        .nodeCanvasObject((node, ctx, globalScale) => {
+            const label = node.name;
+            const fontSize = 12 / globalScale;
+            ctx.font = `${fontSize}px Sans-Serif`;
+            const textWidth = ctx.measureText(label).width;
+            const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = node.color;
+            ctx.fillText(label, node.x, node.y);
+
+            node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+        })
+        .nodePointerAreaPaint((node, color, ctx) => {
+            ctx.fillStyle = color;
+            const bckgDimensions = node.__bckgDimensions;
+            bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+        });
 
     tags.sort()
 
@@ -74,18 +99,18 @@
         .data(dataList)
         .enter()
         .append("li")
-        .text( it => `${it[0]} -- ${it[1]["tags"] || ""}`)
+        .text(it => `${it[0]} -- ${it[1]["tags"] || ""}`)
 
         .append("ul")
         .selectAll("li")
-        .data( (it) => Object.entries(it[1].libraries || []))
+        .data((it) => Object.entries(it[1].libraries || []))
         .enter()
         .append("li")
-        .text( it => it[0])
+        .text(it => it[0])
 
 
-    tags.forEach( (tag) => {
-        let filteredTools = dataList.filter( (it) => (it[1]["tags"] || []).includes(tag) )
+    tags.forEach((tag) => {
+        let filteredTools = dataList.filter((it) => (it[1]["tags"] || []).includes(tag))
 
         d3.select("body")
             .append("h2")
@@ -97,14 +122,13 @@
             .data(filteredTools)
             .enter()
             .append("li")
-            .text( it => `${it[0]} -- ${it[1]["tags"] || ""}`)
+            .text(it => `${it[0]} -- ${it[1]["tags"] || ""}`)
             .append("a")
             .text("link")
-            .attr("href", it => (it[1]["references"] || [""])[0] )
+            .attr("href", it => (it[1]["references"] || [""])[0])
             .attr("style", "margin-left: 0.5ex")
 
     })
-
 
 
 </script>
