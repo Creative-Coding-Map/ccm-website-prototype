@@ -49,9 +49,23 @@
             const link = {
                 source: tn.id,
                 target: tooln.id,
+                type: "tag",
                 curvature: 0.0
             }
             links.push(link)
+        });
+        (n[1].dependsOn || []).forEach(t => {
+            const tooln = toolNodes.find(it => it.name === n[0])
+            const dependn = toolNodes.find(it => it.name === t)
+            if (dependn) {
+                const link = {
+                    source: dependn.id,
+                    target: tooln.id,
+                    type: "dependency",
+                    curvature: 0.0
+                }
+                links.push(link)
+            }
         })
     })
 
@@ -64,6 +78,7 @@
         .linkCurvature('curvature')
         .nodeAutoColorBy('type')
         .graphData(gData)
+        .linkLineDash(link => link.type === "dependency" && [0.5,0.5])
         .nodeCanvasObject((node, ctx, globalScale) => {
             const label = node.name;
             const fontSize = 12 / globalScale;
