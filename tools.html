@@ -9,9 +9,12 @@
         }
 
         #graph {
-            width: 400px;
-            height: 400px;
-            z-index: -100;
+            left: 200px;
+            width: 800px;
+            height: 800px;
+
+            position: absolute;
+            background: antiquewhite;
         }
     </style>
 </head>
@@ -33,51 +36,63 @@
 
     const allTags = dataList.flatMap((it) => it[1].tags || [])
     let tags = [...new Set(allTags)]
+    tags.sort()
     const toolNodes = dataList.map((it, idx) => {
         return {"id": idx, "name": it[0], "type": "tool"}
     })
-    const tagNodes = tags.map((it, idx) => {
-        return {"id": idx + toolNodes.length, "name": it, "type": "tag"}
+
+    let enableDependencyLinks = true;
+    const activeTags = new Set(allTags)
+    const tagNodes = [...activeTags].map((it, idx) => {
+        return {"id": it, "name": it, "type": "tag"}
     })
 
-    const links = [];
-    const nodes = toolNodes.concat(tagNodes)
-    dataList.forEach(n => {
-        (n[1].tags || []).forEach(t => {
-            const tn = tagNodes.find(it => it.name === t)
-            const tooln = toolNodes.find(it => it.name === n[0])
-            const link = {
-                source: tn.id,
-                target: tooln.id,
-                type: "tag",
-                curvature: 0.0
-            }
-            links.push(link)
-        });
-        (n[1].dependsOn || []).forEach(t => {
-            const tooln = toolNodes.find(it => it.name === n[0])
-            const dependn = toolNodes.find(it => it.name === t)
-            if (dependn) {
-                const link = {
-                    source: dependn.id,
-                    target: tooln.id,
-                    type: "dependency",
-                    curvature: 0.0
+    function buildGraph() {
+        const links = [];
+
+        const nodes = toolNodes.concat(tagNodes)
+        dataList.forEach(n => {
+            (n[1].tags || []).forEach(t => {
+                if (activeTags.has(t)) {
+                    const tn = tagNodes.find(it => it.name === t)
+                    const tooln = toolNodes.find(it => it.name === n[0])
+                    const link = {
+                        source: tn.id,
+                        target: tooln.id,
+                        type: "tag",
+                        curvature: 0.0
+                    }
+                    links.push(link)
                 }
-                links.push(link)
+            });
+            if (enableDependencyLinks) {
+                (n[1].dependsOn || []).forEach(t => {
+                    const tooln = toolNodes.find(it => it.name === n[0])
+                    const dependn = toolNodes.find(it => it.name === t)
+                    if (dependn) {
+                        const link = {
+                            source: dependn.id,
+                            target: tooln.id,
+                            type: "dependency",
+                            curvature: 0.0
+                        }
+                        links.push(link)
+                    }
+                })
             }
         })
-    })
+        return {"nodes": nodes, "links": links}
+    }
 
 
-    const gData = {"nodes": nodes, "links": links}
 
-    const Graph = new ForceGraph()
+    const graph = new ForceGraph()
     (document.getElementById('graph'))
-        .height(400)
+        .width(800)
+        .height(800)
         .linkCurvature('curvature')
         .nodeAutoColorBy('type')
-        .graphData(gData)
+        .graphData(buildGraph())
         .linkLineDash(link => link.type === "dependency" && [0.5,0.5])
         .nodeCanvasObject((node, ctx, globalScale) => {
             const label = node.name;
@@ -102,7 +117,42 @@
             bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
         });
 
-    tags.sort()
+    d3.select("body").append("h3").text("Tag links")
+    const checkBoxForm = d3.select("body").append("form")
+    const divs = checkBoxForm.selectAll("div")
+        .data(tags)
+        .enter()
+        .append("div")
+
+
+    divs
+        .append("input")
+        .attr("id", it=>it)
+        .attr("checked", "")
+        .attr("type", "checkbox")
+        .on("change", it => {
+            const tag = it.target.__data__
+            if (activeTags.has(tag)) {
+                activeTags.delete(tag)
+            } else {
+                activeTags.add(tag)
+            }
+            graph.graphData(buildGraph())
+        })
+
+    divs
+        .append("label")
+        .attr("for", it=>it)
+        .text(it => it)
+
+    d3.select("body").append("h3").text("Other links")
+    const linkDiv = d3.select("body").append("form").append("div")
+    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "dependencies")
+        .on("change", it => {
+            enableDependencyLinks = ! enableDependencyLinks
+            graph.graphData(buildGraph())
+        })
+    linkDiv.append("label").attr("for", "dependencies").text("dependency links")
 
     d3.select("body")
         .append("h1")
