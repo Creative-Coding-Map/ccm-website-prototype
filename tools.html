@@ -3,9 +3,14 @@
 <head>
 <script src="//cdn.jsdelivr.net/npm/force-graph"></script>
 <style>
+
+    body {
+        margin:20px
+    }
     #graph {
-        width: 100%;
+        width: 400px;
         height: 400px;
+        z-index: -100;
     }
 </style>
 </head>
@@ -25,9 +30,6 @@
     const dataList = Object.entries(data.tools)
         dataList.sort( (a,b) => a[0].localeCompare(b[0]))
 
-    var margin = {top: 10, right: 30, bottom: 30, left: 40},
-        width = 1200 - margin.left - margin.right,
-        height = 1200 - margin.top - margin.bottom;
 
     const allTags = dataList.flatMap( (it) => it[1].tags || []  )
     let tags = [...new Set(allTags)]
@@ -55,12 +57,10 @@
 
     const Graph = new ForceGraph()
         (document.getElementById('graph'))
+            .height(400)
             .linkCurvature('curvature')
             .nodeAutoColorBy('type')
-        //    .linkDirectionalParticles(2)
             .graphData(gData);
-
-    // var chart = ForceGraph(nodes, links)
 
     tags.sort()
 
