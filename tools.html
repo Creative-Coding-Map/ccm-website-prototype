@@ -1,18 +1,66 @@
 <!DOCTYPE html>
 <div id="container"></div>
+<head>
+<script src="//cdn.jsdelivr.net/npm/force-graph"></script>
+<style>
+    #graph {
+        width: 100%;
+        height: 400px;
+    }
+</style>
+</head>
+<body>
+<div id="graph"></div>
 <script type="module">
 
+
+
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-    // Declare the chart dimensions and margins.
+    //https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js
+
+//        import {ForceGraph} from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js";
 
     const data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json")
 
     const dataList = Object.entries(data.tools)
         dataList.sort( (a,b) => a[0].localeCompare(b[0]))
-    const toolsList = d3.create("ul")
+
+    var margin = {top: 10, right: 30, bottom: 30, left: 40},
+        width = 1200 - margin.left - margin.right,
+        height = 1200 - margin.top - margin.bottom;
 
     const allTags = dataList.flatMap( (it) => it[1].tags || []  )
     let tags = [...new Set(allTags)]
+    const toolNodes = dataList.map((it, idx) => { return { "id":idx, "name":it[0], "type":"tool" }} )
+    const tagNodes = tags.map( (it,idx) => { return { "id": idx + toolNodes.length, "name":it, "type":"tag"}})
+
+    const links = [];
+    const nodes = toolNodes.concat(tagNodes)
+    dataList.forEach( n => {
+        (n[1].tags || []).forEach( t => {
+            const tn = tagNodes.find( it => it.name === t)
+            const tooln = toolNodes.find( it => it.name === n[0])
+            const link = {
+                source: tn.id,
+                target: tooln.id,
+                curvature: 0.0
+            }
+            links.push(link)
+        })
+    })
+
+
+
+    const gData = { "nodes": nodes, "links": links}
+
+    const Graph = new ForceGraph()
+        (document.getElementById('graph'))
+            .linkCurvature('curvature')
+            .nodeAutoColorBy('type')
+        //    .linkDirectionalParticles(2)
+            .graphData(gData);
+
+    // var chart = ForceGraph(nodes, links)
 
     tags.sort()
 
@@ -27,6 +75,13 @@
         .enter()
         .append("li")
         .text( it => `${it[0]} -- ${it[1]["tags"] || ""}`)
+
+        .append("ul")
+        .selectAll("li")
+        .data( (it) => Object.entries(it[1].libraries || []))
+        .enter()
+        .append("li")
+        .text( it => it[0])
 
 
     tags.forEach( (tag) => {
@@ -53,3 +108,4 @@
 
 
 </script>
+</body>
