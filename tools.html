@@ -22,17 +22,11 @@
 <div id="graph"></div>
 <script type="module">
 
-
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-    //https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js
-
-    //        import {ForceGraph} from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/dist/force-graph.min.js";
 
     const data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json")
-
     const dataList = Object.entries(data.tools)
     dataList.sort((a, b) => a[0].localeCompare(b[0]))
-
 
     const allTags = dataList.flatMap((it) => it[1].tags || [])
     let tags = [...new Set(allTags)]
@@ -83,8 +77,6 @@
         })
         return {"nodes": nodes, "links": links}
     }
-
-
 
     const graph = new ForceGraph()
     (document.getElementById('graph'))
@@ -194,7 +186,5 @@
             .attr("style", "margin-left: 0.5ex")
 
     })
-
-
 </script>
 </body>
