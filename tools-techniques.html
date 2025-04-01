@@ -25,16 +25,27 @@
 
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-    const data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json")
-    const dataList = Object.entries(data.tools)
-    dataList.sort((a, b) => a[0].localeCompare(b[0]))
+    let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
+    const toolData = Object.entries(data.tools)
+    toolData.sort((a, b) => a[0].localeCompare(b[0]))
 
-    const allTags = dataList.flatMap((it) => it[1].tags || [])
+    data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/techniques/techniques.json");
+    const techniqueData = Object.entries(data.techniques)
+    techniqueData.sort((a, b) => a[0].localeCompare(b[0]))
+
+    const allTags = (toolData.concat(techniqueData)).flatMap((it) => it[1].tags || [])
     let tags = [...new Set(allTags)]
     tags.sort()
-    const toolNodes = dataList.map((it, idx) => {
-        return {"id": idx, "name": it[0], "type": "tool"}
+
+    const toolNodes = toolData.map((it, idx) => {
+        return {"id": it[0], "name": it[0], "type": "tool"}
     })
+
+    const techniqueNodes = techniqueData.map((it, idx) => {
+        return {"id": it[0], "name": it[1].name, "type": "technique"}
+    })
+
+    console.log(techniqueNodes)
 
     let enableDependencyLinks = true;
     const activeTags = new Set(allTags)
@@ -44,9 +55,8 @@
 
     function buildGraph() {
         const links = [];
-
-        const nodes = toolNodes.concat(tagNodes)
-        dataList.forEach(n => {
+        const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
+        toolData.forEach(n => {
             (n[1].tags || []).forEach(t => {
                 if (activeTags.has(t)) {
                     const tn = tagNodes.find(it => it.name === t)
@@ -76,6 +86,26 @@
                 })
             }
         })
+
+        techniqueData.forEach(n => {
+            (n[1].tags || []).forEach(t => {
+                if (activeTags.has(t)) {
+                    const tagn = tagNodes.find(it => it.name === t)
+
+                    console.log(n[0])
+                    const techniquen = techniqueNodes.find(it => it.id === n[0])
+                    console.log(techniquen)
+                    const link = {
+                        source: tagn.id,
+                        target: techniquen.id,
+                        type: "tag",
+                        curvature: 0.0
+                    }
+                    links.push(link)
+                }
+            });
+        })
+
         return {"nodes": nodes, "links": links}
     }
 
@@ -86,7 +116,7 @@
         .linkCurvature('curvature')
         .nodeAutoColorBy('type')
         .graphData(buildGraph())
-        .linkLineDash(link => link.type === "dependency" && [0.5,0.5])
+        .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
         .nodeCanvasObject((node, ctx, globalScale) => {
             const label = node.name;
             const fontSize = 12 / globalScale;
@@ -109,7 +139,6 @@
             const bckgDimensions = node.__bckgDimensions;
             bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
         });
-
     d3.select("body").append("h3").text("Tag links")
     const checkBoxForm = d3.select("body").append("form")
     const divs = checkBoxForm.selectAll("div")
@@ -120,7 +149,7 @@
 
     divs
         .append("input")
-        .attr("id", it=>it)
+        .attr("id", it => it)
         .attr("checked", "")
         .attr("type", "checkbox")
         .on("change", it => {
@@ -135,57 +164,17 @@
 
     divs
         .append("label")
-        .attr("for", it=>it)
+        .attr("for", it => it)
         .text(it => it)
 
     d3.select("body").append("h3").text("Other links")
     const linkDiv = d3.select("body").append("form").append("div")
     linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "dependencies")
         .on("change", it => {
-            enableDependencyLinks = ! enableDependencyLinks
+            enableDependencyLinks = !enableDependencyLinks
             graph.graphData(buildGraph())
         })
     linkDiv.append("label").attr("for", "dependencies").text("dependency links")
 
-    d3.select("body")
-        .append("h1")
-        .text("All tools")
-
-    d3.select("body")
-        .append("ul")
-        .selectAll("li")
-        .data(dataList)
-        .enter()
-        .append("li")
-        .text(it => `${it[0]} -- ${it[1]["tags"] || ""}`)
-
-        .append("ul")
-        .selectAll("li")
-        .data((it) => Object.entries(it[1].libraries || []))
-        .enter()
-        .append("li")
-        .text(it => it[0])
-
-
-    tags.forEach((tag) => {
-        let filteredTools = dataList.filter((it) => (it[1]["tags"] || []).includes(tag))
-
-        d3.select("body")
-            .append("h2")
-            .text(tag)
-
-        d3.select("body")
-            .append("ul")
-            .selectAll("li")
-            .data(filteredTools)
-            .enter()
-            .append("li")
-            .text(it => `${it[0]} -- ${it[1]["tags"] || ""}`)
-            .append("a")
-            .text("link")
-            .attr("href", it => (it[1]["references"] || [""])[0])
-            .attr("style", "margin-left: 0.5ex")
-
-    })
 </script>
 </body>
