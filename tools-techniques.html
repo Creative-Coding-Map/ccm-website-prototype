@@ -10,7 +10,6 @@
 
         #path-inspector {
             width: 100%;
-
         }
 
         #item-inspector {
@@ -21,29 +20,34 @@
         .code {
             font-family: 'Space Mono', monospace
         }
+
         .container {
             width: 100%;
             height: 100vh;
             display: flex;
             flex-direction: row;
         }
+
         #graph {
             flex-grow: 1;
             flex-shrink: 1;
         }
+
         .filter-container {
             flex-grow: 0;
             flex-shrink: 0;
             width: 250px;
         }
+
         .inspector-container {
             flex-grow: 0;
             flex-shrink: 0;
             width: 250px;
         }
+
         #graph {
 
-            height:100vh;
+            height: 100vh;
 
 
         }
@@ -63,7 +67,7 @@
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
-    import {findShortestPath, findAllShortestPaths} from "./dijkstra.js"
+    import {findAllShortestPaths} from "./dijkstra.js"
 
     let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
     const toolData = Object.entries(data.tools)
@@ -102,6 +106,7 @@
     let shortestPaths = []
     let shortestPathNodeIds = new Set()
 
+    let selectedPath = null
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
@@ -204,6 +209,7 @@
         } else {
             shortestPath = []
         }
+        selectedPath = "shortest-path-0"
         inspectPath("shortest-path-0")
         return {"nodes": nodes, "links": links}
     }
@@ -276,8 +282,8 @@
         })
     }
 
-    let cw =  document.getElementById('graph').clientWidth
-    let ch =  document.getElementById('graph').clientHeight
+    let cw = document.getElementById('graph').clientWidth
+    let ch = document.getElementById('graph').clientHeight
     const graph = new ForceGraph()
 
     (document.getElementById('graph'))
@@ -289,10 +295,13 @@
         .graphData(buildGraph())
         .linkColor('color')
         // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-        .linkWidth(link => (link.type.includes("shortest-path") && 5.0 || 1.0))
+        .linkWidth(link => (link.type === selectedPath && 5.0 || 1.0))
         //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
         .onLinkClick(link => {
             if (link.type.includes("shortest-path")) {
+                selectedPath = link.type
+                graph.autoPauseRedraw(false)
+
                 inspectPath(link.type)
             }
         })
@@ -313,10 +322,14 @@
             //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
         })
         .nodeCanvasObject((node, ctx, globalScale) => {
-            if (shortestPaths.paths && !shortestPathNodeIds.has(node.id)) {
-                //ctx.fillCircle(node.x, node.y, 20.0)
+            let transform = ctx.getTransform()
+            let scale = (transform.a + transform.d) / 2.0
+
+            if (shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 8.0 && !shortestPathNodeIds.has(node.id))) {
                 ctx.fillStyle = 'black';
-                ctx.beginPath(); ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false); ctx.fill();
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
+                ctx.fill();
                 node.__bckgDimensions = [4, 4]
             } else {
                 const label = node.name;
@@ -332,7 +345,6 @@
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = node.color;
                 ctx.fillText(label, node.x, node.y);
-
                 node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
             }
         })
@@ -410,7 +422,6 @@
         .append("label")
         .attr("for", it => it)
         .text(it => it)
-
 
 </script>
 </body>
