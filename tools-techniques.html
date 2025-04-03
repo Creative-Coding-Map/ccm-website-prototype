@@ -2,13 +2,10 @@
 <div id="container"></div>
 <head>
     <title>Creative Coding Tools</title>
-    <script src="//cdn.jsdelivr.net/npm/force-graph"></script>
     <style>
-
         body {
             margin: 20px
         }
-
         #graph {
             left: 200px;
             width: 800px;
@@ -22,8 +19,9 @@
 <body>
 <div id="graph"></div>
 <script type="module">
-
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+    import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
+    import findShortestPath from "./dijkstra.js"
 
     let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
     const toolData = Object.entries(data.tools)
@@ -45,34 +43,43 @@
         return {"id": it[0], "name": it[1].name, "type": "technique"}
     })
 
-    console.log(techniqueNodes)
-
+    let enableToolTagLinks = true;
+    let enableTechniqueTagLinks = true;
     let enableDependencyLinks = true;
+    let enableSupportLinks = true;
+    let enableTechniqueLinks = true;
     const activeTags = new Set(allTags)
     const tagNodes = [...activeTags].map((it, idx) => {
         return {"id": it, "name": it, "type": "tag"}
     })
 
+    let highlightLinks = new Set([])
+    let selectedNodes = new Set();
+
+    let pathNodes = []
+    let shortestPath = []
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
         toolData.forEach(n => {
-            (n[1].tags || []).forEach(t => {
-                if (activeTags.has(t)) {
-                    const tn = tagNodes.find(it => it.name === t)
-                    const tooln = toolNodes.find(it => it.name === n[0])
-                    const link = {
-                        source: tn.id,
-                        target: tooln.id,
-                        type: "tag",
-                        curvature: 0.0
+            if (enableToolTagLinks) {
+                (n[1].tags || []).forEach(t => {
+                    if (activeTags.has(t)) {
+                        const tn = tagNodes.find(it => it.name === t)
+                        const tooln = toolNodes.find(it => it.name === n[0])
+                        const link = {
+                            source: tn.id,
+                            target: tooln.id,
+                            type: "tag",
+                            curvature: 0.0
+                        }
+                        links.push(link)
                     }
-                    links.push(link)
-                }
-            });
+                });
+            }
+            const tooln = toolNodes.find(it => it.name === n[0])
             if (enableDependencyLinks) {
                 (n[1].dependsOn || []).forEach(t => {
-                    const tooln = toolNodes.find(it => it.name === n[0])
                     const dependn = toolNodes.find(it => it.name === t)
                     if (dependn) {
                         const link = {
@@ -85,27 +92,67 @@
                     }
                 })
             }
+            if (enableSupportLinks) {
+                (n[1].supports || []).forEach(t => {
+                    const supportn = toolNodes.find(it => it.name === t)
+                    if (supportn) {
+                        const link = {
+                            source: supportn.id,
+                            target: tooln.id,
+                            type: "support",
+                            curvature: 0.0
+                        }
+                        links.push(link)
+                    }
+                })
+            }
+            if (enableTechniqueLinks) {
+                Object.entries(n[1].actions || {}).forEach(a => {
+                    (a[1].techniques || []).forEach(t => {
+                        const link = {
+                            source: tooln.id,
+                            target: t
+                        }
+                        links.push(link)
+                    })
+                })
+            }
         })
 
         techniqueData.forEach(n => {
-            (n[1].tags || []).forEach(t => {
-                if (activeTags.has(t)) {
-                    const tagn = tagNodes.find(it => it.name === t)
-
-                    console.log(n[0])
-                    const techniquen = techniqueNodes.find(it => it.id === n[0])
-                    console.log(techniquen)
-                    const link = {
-                        source: tagn.id,
-                        target: techniquen.id,
-                        type: "tag",
-                        curvature: 0.0
+            if (enableTechniqueTagLinks) {
+                (n[1].tags || []).forEach(t => {
+                    if (activeTags.has(t)) {
+                        const tagn = tagNodes.find(it => it.name === t)
+                        const techniquen = techniqueNodes.find(it => it.id === n[0])
+                        const link = {
+                            source: tagn.id,
+                            target: techniquen.id,
+                            type: "tag",
+                            curvature: 0.0
+                        }
+                        links.push(link)
                     }
-                    links.push(link)
-                }
-            });
+                });
+            }
         })
 
+        if (pathNodes.length === 2) {
+            shortestPath = findShortestPath(links, pathNodes[0].id, pathNodes[1].id)
+            const hl = []
+            for (let i = 0; i < shortestPath.path.length-1; ++i) {
+                let a = shortestPath.path[i]
+                let b = shortestPath.path[i+1]
+                let link = links.find(it => (it.source === a && it.target === b) || (it.source === b && it.target === a))
+                if (link) {
+                    hl.push(link)
+                }
+            }
+            highlightLinks = new Set(hl)
+        } else {
+            shortestPath = []
+            highlightLinks = new Set()
+        }
         return {"nodes": nodes, "links": links}
     }
 
@@ -115,8 +162,25 @@
         .height(800)
         .linkCurvature('curvature')
         .nodeAutoColorBy('type')
+        //.nodeColor( node => selectedNodes.has(node) || 'auto')
         .graphData(buildGraph())
         .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
+        .linkWidth(link => highlightLinks.has(link) ? 5 : 1)
+        .onNodeClick((node, event) => {
+            if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2)  { // multi-selection
+                selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
+            } else { // single-selection
+                const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
+                selectedNodes.clear();
+                !untoggle && selectedNodes.add(node);
+            }
+
+            if (selectedNodes.size === 2) {
+                pathNodes = [... selectedNodes]
+                graph.graphData(buildGraph())
+            }
+            //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
+        })
         .nodeCanvasObject((node, ctx, globalScale) => {
             const label = node.name;
             const fontSize = 12 / globalScale;
@@ -139,13 +203,56 @@
             const bckgDimensions = node.__bckgDimensions;
             bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
         });
+
+    d3.select("body").append("h3").text("Other links")
+    const linkDiv = d3.select("body").append("form").append("div")
+    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "tool-tags")
+        .on("change", it => {
+            enableToolTagLinks = !enableToolTagLinks
+            graph.graphData(buildGraph())
+        })
+    linkDiv.append("label").attr("for", "tool-tags").text("tool tag links")
+    linkDiv.append("div")
+
+    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "technique-tags")
+        .on("change", it => {
+            enableTechniqueTagLinks = !enableTechniqueTagLinks
+            graph.graphData(buildGraph())
+        })
+    linkDiv.append("label").attr("for", "tool-tags").text("technique tag links")
+    linkDiv.append("div")
+
+    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "dependencies")
+        .on("change", it => {
+            enableDependencyLinks = !enableDependencyLinks
+            graph.graphData(buildGraph())
+        })
+    linkDiv.append("label").attr("for", "dependencies").text("dependency links")
+
+    linkDiv.append("div")
+    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "support")
+        .on("change", it => {
+            enableSupportLinks = !enableSupportLinks
+            graph.graphData(buildGraph())
+        })
+    linkDiv.append("label").attr("for", "support").text("support links")
+
+    linkDiv.append("div")
+    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "techniques")
+        .on("change", it => {
+            enableTechniqueLinks = !enableTechniqueLinks
+            graph.graphData(buildGraph())
+        })
+    linkDiv.append("label").attr("for", "techniques").text("technique links")
+
+
+
     d3.select("body").append("h3").text("Tag links")
     const checkBoxForm = d3.select("body").append("form")
     const divs = checkBoxForm.selectAll("div")
         .data(tags)
         .enter()
         .append("div")
-
 
     divs
         .append("input")
@@ -167,14 +274,6 @@
         .attr("for", it => it)
         .text(it => it)
 
-    d3.select("body").append("h3").text("Other links")
-    const linkDiv = d3.select("body").append("form").append("div")
-    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "dependencies")
-        .on("change", it => {
-            enableDependencyLinks = !enableDependencyLinks
-            graph.graphData(buildGraph())
-        })
-    linkDiv.append("label").attr("for", "dependencies").text("dependency links")
 
 </script>
 </body>
