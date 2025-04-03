@@ -1,4 +1,4 @@
-export default function(edges, start, end) {
+function findShortestPath(edges, start, end) {
 
     console.log(edges)
     // Build adjacency list from edges (bidirectional)
@@ -234,4 +234,4 @@ function buildUndirectedGraph(edges) {
 // console.log(`Shortest path: ${result.path.join(' -> ')}`);
 // }
 
-export { }
+export {  findShortestPath, findAllShortestPaths }

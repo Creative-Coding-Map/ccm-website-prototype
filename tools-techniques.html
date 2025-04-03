@@ -6,6 +6,7 @@
         body {
             margin: 20px
         }
+
         #graph {
             left: 200px;
             width: 800px;
@@ -21,7 +22,7 @@
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
-    import findShortestPath from "./dijkstra.js"
+    import {findShortestPath, findAllShortestPaths} from "./dijkstra.js"
 
     let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
     const toolData = Object.entries(data.tools)
@@ -53,11 +54,12 @@
         return {"id": it, "name": it, "type": "tag"}
     })
 
-    let highlightLinks = new Set([])
     let selectedNodes = new Set();
 
     let pathNodes = []
     let shortestPath = []
+    let shortestPaths = []
+
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
@@ -111,7 +113,8 @@
                     (a[1].techniques || []).forEach(t => {
                         const link = {
                             source: tooln.id,
-                            target: t
+                            target: t,
+                            type: "tool-technique"
                         }
                         links.push(link)
                     })
@@ -138,20 +141,24 @@
         })
 
         if (pathNodes.length === 2) {
-            shortestPath = findShortestPath(links, pathNodes[0].id, pathNodes[1].id)
-            const hl = []
-            for (let i = 0; i < shortestPath.path.length-1; ++i) {
-                let a = shortestPath.path[i]
-                let b = shortestPath.path[i+1]
-                let link = links.find(it => (it.source === a && it.target === b) || (it.source === b && it.target === a))
-                if (link) {
-                    hl.push(link)
+            shortestPaths = findAllShortestPaths(links, pathNodes[0].id, pathNodes[1].id)
+            const pathCount = shortestPaths.paths.length
+            for (let p = 0; p < shortestPaths.paths.length; ++p) {
+                for (let i = 0; i < shortestPaths.paths[p].length - 1; ++i) {
+                    let a = shortestPaths.paths[p][i]
+                    let b = shortestPaths.paths[p][i + 1]
+                    links.push({
+                        source: a,
+                        target: b,
+                        type: `shortest-path-${p}`,
+                        color: `hsl(${360.0 * ((p / (pathCount)) || 0.0)}, 100%, 50%)`,
+                        curvature: (pathCount === 1 && 0.0) || (p / (pathCount - 1.0) - 0.5) * 0.25
+                    })
                 }
             }
-            highlightLinks = new Set(hl)
+
         } else {
             shortestPath = []
-            highlightLinks = new Set()
         }
         return {"nodes": nodes, "links": links}
     }
@@ -164,10 +171,12 @@
         .nodeAutoColorBy('type')
         //.nodeColor( node => selectedNodes.has(node) || 'auto')
         .graphData(buildGraph())
-        .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-        .linkWidth(link => highlightLinks.has(link) ? 5 : 1)
+        .linkColor('color')
+        // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
+        .linkWidth(link => (link.type.includes("shortest-path") && 5.0 || 1.0))
+        //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
         .onNodeClick((node, event) => {
-            if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2)  { // multi-selection
+            if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
                 selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
             } else { // single-selection
                 const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
@@ -176,7 +185,7 @@
             }
 
             if (selectedNodes.size === 2) {
-                pathNodes = [... selectedNodes]
+                pathNodes = [...selectedNodes]
                 graph.graphData(buildGraph())
             }
             //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
@@ -244,7 +253,6 @@
             graph.graphData(buildGraph())
         })
     linkDiv.append("label").attr("for", "techniques").text("technique links")
-
 
 
     d3.select("body").append("h3").text("Tag links")
