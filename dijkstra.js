@@ -158,6 +158,11 @@ function findAllShortestPaths(edges, start, end) {
 
     // Helper function to recursively build all paths
     function buildPaths(node, path) {
+
+        if (!node) {
+            return;
+        }
+
         // If we reached the start, we have a complete path
         if (node === start) {
             allPaths.push([...path, node]);
@@ -165,7 +170,7 @@ function findAllShortestPaths(edges, start, end) {
         }
 
         // No path to this node
-        if (previous[node].length === 0) {
+        if (!previous[node] ||  previous[node].length === 0) {
             return;
         }
 

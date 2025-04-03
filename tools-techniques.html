@@ -243,7 +243,7 @@
             ii.append("h4").text("References:")
             let references = ii.append("ul")
             references.selectAll("li")
-                .data(item.ccmData[1].references)
+                .data(item.ccmData[1].references || [])
                 .enter()
                 .append("li")
                 .append("a")
