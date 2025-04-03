@@ -1,10 +1,28 @@
 <!DOCTYPE html>
 <div id="container"></div>
 <head>
+    <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
     <title>Creative Coding Tools</title>
     <style>
         body {
             margin: 20px
+        }
+
+        #path-inspector {
+            position: absolute;
+            right: 0px;
+            width: 400px;
+        }
+
+        #item-inspector {
+            position: absolute;
+            right: 400px;
+            width: 400px;
+            height: 400px;
+        }
+
+        .code {
+            font-family: 'Space Mono', monospace
         }
 
         #graph {
@@ -19,6 +37,8 @@
 </head>
 <body>
 <div id="graph"></div>
+<div id="path-inspector"></div>
+<div id="item-inspector"></div>
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
@@ -37,11 +57,11 @@
     tags.sort()
 
     const toolNodes = toolData.map((it, idx) => {
-        return {"id": it[0], "name": it[0], "type": "tool"}
+        return {"id": it[0], "name": it[0], "type": "tool", "ccmData": it}
     })
 
     const techniqueNodes = techniqueData.map((it, idx) => {
-        return {"id": it[0], "name": it[1].name, "type": "technique"}
+        return {"id": it[0], "name": it[1].name, "type": "technique", "ccmData": it}
     })
 
     let enableToolTagLinks = true;
@@ -160,7 +180,71 @@
         } else {
             shortestPath = []
         }
+        inspectPath("shortest-path-0")
         return {"nodes": nodes, "links": links}
+    }
+
+    function inspectNodeItem(item) {
+        let ii = d3.select("#item-inspector")
+        ii.html("")
+
+        ii.append("h3").text("Node")
+        ii.append("p").html(`This is <span class="code">${item.id}</span>`)
+        ii.append("p").html(`Node is of type <span class="code">${item.type}</span>`)
+
+        if (item.type !== "tag") {
+            ii.append("h4").text("Tags:")
+            let tags = ii.append("p")
+            tags.text(item.ccmData[1].tags)
+        }
+
+        if (item.type === "tool") {
+            ii.append("h4").text("Depends on:")
+
+            let dependencies = ii.append("p")
+            dependencies.text(item.ccmData[1].dependsOn)
+
+            ii.append("h4").text("Supports:")
+            let support = ii.append("p")
+            support.text(item.ccmData[1].supports)
+        }
+
+        if (item.type === "tool" || item.type === "technique") {
+            ii.append("h4").text("References:")
+            let references = ii.append("ul")
+            references.selectAll("li")
+                .data(item.ccmData[1].references)
+                .enter()
+                .append("li")
+                .append("a")
+                .text(item => item)
+                .attr("href", item => item)
+        }
+    }
+
+    function inspectPath(pathName) {
+        let pi = d3.select("#path-inspector")
+        pi.html("")
+
+        if (!shortestPaths.paths)
+            return
+
+        const pathIndexMatch = pathName.match(/shortest-path-(\d+)/);
+        if (pathIndexMatch) {
+            const pathIndex = parseInt(pathIndexMatch[1], 10);
+
+            pi.append("h3").text("Shortest path")
+
+            let source = shortestPaths.paths[pathIndex][0]
+            let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
+            pi.append("p").html(`The shortest path between <span class="code">${source}</span> and <span class="code">${target}</span> is as follows:`)
+
+            let ul = pi.append("ul")
+            ul.selectAll("li")
+                .data(shortestPaths.paths[pathIndex])
+                .enter()
+                .append("li").text(item => item).attr("class", "code")
+        }
     }
 
     const graph = new ForceGraph()
@@ -175,10 +259,16 @@
         // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
         .linkWidth(link => (link.type.includes("shortest-path") && 5.0 || 1.0))
         //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
+        .onLinkClick(link => {
+            if (link.type.includes("shortest-path")) {
+                inspectPath(link.type)
+            }
+        })
         .onNodeClick((node, event) => {
             if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
                 selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
             } else { // single-selection
+                inspectNodeItem(node)
                 const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
                 selectedNodes.clear();
                 !untoggle && selectedNodes.add(node);
