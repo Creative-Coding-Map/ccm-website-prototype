@@ -21,6 +21,19 @@
             font-family: 'Space Mono', monospace
         }
 
+        .node-reference {
+            font-family: 'Space Mono', monospace;
+            cursor: crosshair;
+            text-decoration: underline;
+        }
+
+        .node-reference:after {
+            content: ',';
+        }
+        .code:after {
+            margin-right: 1ex;
+        }
+
         .container {
             width: 100%;
             height: 100vh;
@@ -105,17 +118,21 @@
     let shortestPath = []
     let shortestPaths = []
     let shortestPathNodeIds = new Set()
+    let nodesById = {}
 
     let selectedPath = null
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
+        nodesById = {}
         toolData.forEach(n => {
+            const tooln = toolNodes.find(it => it.name === n[0])
+            nodesById[n[0]] = tooln
             if (enableToolTagLinks) {
                 (n[1].tags || []).forEach(t => {
                     if (activeTags.has(t)) {
                         const tn = tagNodes.find(it => it.name === t)
-                        const tooln = toolNodes.find(it => it.name === n[0])
+                        nodesById[t] = tn
                         const link = {
                             source: tn.id,
                             target: tooln.id,
@@ -126,7 +143,6 @@
                     }
                 });
             }
-            const tooln = toolNodes.find(it => it.name === n[0])
             if (enableDependencyLinks) {
                 (n[1].dependsOn || []).forEach(t => {
                     const dependn = toolNodes.find(it => it.name === t)
@@ -170,11 +186,13 @@
         })
 
         techniqueData.forEach(n => {
+            const techniquen = techniqueNodes.find(it => it.id === n[0])
+            nodesById[n[0]] = techniquen
             if (enableTechniqueTagLinks) {
                 (n[1].tags || []).forEach(t => {
                     if (activeTags.has(t)) {
                         const tagn = tagNodes.find(it => it.name === t)
-                        const techniquen = techniqueNodes.find(it => it.id === n[0])
+
                         const link = {
                             source: tagn.id,
                             target: techniquen.id,
@@ -209,6 +227,7 @@
         } else {
             shortestPath = []
         }
+        console.log(nodesById)
         selectedPath = "shortest-path-0"
         inspectPath("shortest-path-0")
         return {"nodes": nodes, "links": links}
@@ -225,18 +244,42 @@
         if (item.type !== "tag") {
             ii.append("h4").text("Tags:")
             let tags = ii.append("p")
-            tags.text(item.ccmData[1].tags)
+            tags.selectAll("span")
+                .data(item.ccmData[1].tags || [])
+                .enter()
+                .append("span").text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+                })
         }
 
         if (item.type === "tool") {
             ii.append("h4").text("Depends on:")
 
             let dependencies = ii.append("p")
-            dependencies.text(item.ccmData[1].dependsOn)
+            dependencies.selectAll("span")
+                .data(item.ccmData[1].dependsOn || [])
+                .enter()
+                .append("span").text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+                })
 
             ii.append("h4").text("Supports:")
             let support = ii.append("p")
-            support.text(item.ccmData[1].supports)
+            support.selectAll("span")
+                .data(item.ccmData[1].supports || [])
+                .enter()
+                .append("span").text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+                })
         }
 
         if (item.type === "tool" || item.type === "technique") {
@@ -273,7 +316,10 @@
             ul.selectAll("li")
                 .data(shortestPaths.paths[pathIndex])
                 .enter()
-                .append("li").text(item => item).attr("class", "code")
+                .append("li").text(item => item).attr("class", "node-reference").on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+            })
         }
         pi.append("button").text("clear").on('click', i => {
             shortestPaths = []
