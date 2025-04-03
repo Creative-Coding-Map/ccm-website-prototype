@@ -1,44 +1,65 @@
 <!DOCTYPE html>
-<div id="container"></div>
 <head>
     <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
     <title>Creative Coding Tools</title>
     <style>
         body {
-            margin: 20px
+            margin: 20px;
+            background: bisque;
         }
 
         #path-inspector {
-            position: absolute;
-            right: 0px;
-            width: 400px;
+            width: 100%;
+
         }
 
         #item-inspector {
-            position: absolute;
-            right: 400px;
-            width: 400px;
-            height: 400px;
+            width: 100%;
+            margin-bottom: 20px;
         }
 
         .code {
             font-family: 'Space Mono', monospace
         }
-
+        .container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: row;
+        }
         #graph {
-            left: 200px;
-            width: 800px;
-            height: 800px;
+            flex-grow: 1;
+            flex-shrink: 1;
+        }
+        .filter-container {
+            flex-grow: 0;
+            flex-shrink: 0;
+            width: 250px;
+        }
+        .inspector-container {
+            flex-grow: 0;
+            flex-shrink: 0;
+            width: 250px;
+        }
+        #graph {
 
-            position: absolute;
-            background: antiquewhite;
+            height:100vh;
+
+
         }
     </style>
 </head>
 <body>
-<div id="graph"></div>
-<div id="path-inspector"></div>
-<div id="item-inspector"></div>
+<div class="container">
+    <div class="filter-container">
+        <div id="checkboxes"></div>
+    </div>
+    <div id="graph"></div>
+    <div class="inspector-container">
+        <div id="path-inspector"></div>
+        <div id="item-inspector"></div>
+    </div>
+</div>
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
@@ -79,6 +100,7 @@
     let pathNodes = []
     let shortestPath = []
     let shortestPaths = []
+    let shortestPathNodeIds = new Set()
 
     function buildGraph() {
         const links = [];
@@ -162,6 +184,8 @@
 
         if (pathNodes.length === 2) {
             shortestPaths = findAllShortestPaths(links, pathNodes[0].id, pathNodes[1].id)
+            shortestPathNodeIds = new Set(shortestPaths.paths.flatMap(it => it))
+            console.log(shortestPathNodeIds)
             const pathCount = shortestPaths.paths.length
             for (let p = 0; p < shortestPaths.paths.length; ++p) {
                 for (let i = 0; i < shortestPaths.paths[p].length - 1; ++i) {
@@ -245,12 +269,20 @@
                 .enter()
                 .append("li").text(item => item).attr("class", "code")
         }
+        pi.append("button").text("clear").on('click', i => {
+            shortestPaths = []
+            pathNodes = []
+            graph.graphData(buildGraph())
+        })
     }
 
+    let cw =  document.getElementById('graph').clientWidth
+    let ch =  document.getElementById('graph').clientHeight
     const graph = new ForceGraph()
+
     (document.getElementById('graph'))
-        .width(800)
-        .height(800)
+        .width(cw)
+        .height(ch)
         .linkCurvature('curvature')
         .nodeAutoColorBy('type')
         //.nodeColor( node => selectedNodes.has(node) || 'auto')
@@ -281,21 +313,28 @@
             //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
         })
         .nodeCanvasObject((node, ctx, globalScale) => {
-            const label = node.name;
-            const fontSize = 12 / globalScale;
-            ctx.font = `${fontSize}px Sans-Serif`;
-            const textWidth = ctx.measureText(label).width;
-            const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
+            if (shortestPaths.paths && !shortestPathNodeIds.has(node.id)) {
+                //ctx.fillCircle(node.x, node.y, 20.0)
+                ctx.fillStyle = 'black';
+                ctx.beginPath(); ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false); ctx.fill();
+                node.__bckgDimensions = [4, 4]
+            } else {
+                const label = node.name;
+                const fontSize = 12 / globalScale;
+                ctx.font = `${fontSize}px Sans-Serif`;
+                const textWidth = ctx.measureText(label).width;
+                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
 
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+                ctx.fillStyle = 'bisque';
+                ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
 
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = node.color;
-            ctx.fillText(label, node.x, node.y);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = node.color;
+                ctx.fillText(label, node.x, node.y);
 
-            node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+                node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+            }
         })
         .nodePointerAreaPaint((node, color, ctx) => {
             ctx.fillStyle = color;
@@ -303,8 +342,8 @@
             bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
         });
 
-    d3.select("body").append("h3").text("Other links")
-    const linkDiv = d3.select("body").append("form").append("div")
+    d3.select("#checkboxes").append("h3").text("Other links")
+    const linkDiv = d3.select("#checkboxes").append("form").append("div")
     linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "tool-tags")
         .on("change", it => {
             enableToolTagLinks = !enableToolTagLinks
@@ -345,8 +384,8 @@
     linkDiv.append("label").attr("for", "techniques").text("technique links")
 
 
-    d3.select("body").append("h3").text("Tag links")
-    const checkBoxForm = d3.select("body").append("form")
+    d3.select("#checkboxes").append("h3").text("Tag links")
+    const checkBoxForm = d3.select("#checkboxes").append("form")
     const divs = checkBoxForm.selectAll("div")
         .data(tags)
         .enter()
