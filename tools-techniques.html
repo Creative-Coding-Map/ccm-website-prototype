@@ -48,6 +48,7 @@
             text-align: right;
             visibility: hidden;
         }
+
         li:hover > span.remove {
             background: red;
             visibility: visible;
@@ -342,17 +343,12 @@
         }
         const pathIndexMatch = pathName.match(/shortest-path-(\d+)/);
         if (pathIndexMatch) {
-
             pi.append("h3").text("Shortest path")
 
             if (shortestPaths.paths.length === 0) {
                 pi.append("p").html(`There is no path that connects <span class="node-reference">${pathNodes[0].id}</span> to <span class="node-reference">${pathNodes[1].id}</span>`)
             } else {
-
-
                 const pathIndex = parseInt(pathIndexMatch[1], 10);
-
-
                 let source = shortestPaths.paths[pathIndex][0]
                 let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
                 pi.append("p").html(`The shortest path between <span class="code">${source}</span> and <span class="code">${target}</span> is as follows:`)
@@ -371,10 +367,13 @@
                         inspectNodeItem(target)
                     })
                     .append("span").attr("class", "remove").text("×").on('click', (e, data) => {
-                    //alert(`remove ${data}`)
-                    skipPathNodes.add(data)
-                    graph.graphData(buildGraph())
-                    e.stopPropagation();
+                        //alert(`remove ${data}`)
+                        skipPathNodes.add(data)
+                        graph.graphData(buildGraph())
+                        graph.zoomToFit(1000, 100, node => {
+                            return shortestPathNodeIds.has(node.id)
+                        })
+                        e.stopPropagation();
                 })
             }
         }
@@ -404,7 +403,7 @@
         .onLinkClick(link => {
             if (link.type.includes("shortest-path")) {
                 selectedPath = link.type
-                graph.autoPauseRedraw(false)
+               graph.autoPauseRedraw(false)
 
                 inspectPath(link.type)
             }
@@ -422,6 +421,9 @@
             if (selectedNodes.size === 2) {
                 pathNodes = [...selectedNodes]
                 graph.graphData(buildGraph())
+                graph.zoomToFit(1000, 100, node => {
+                    return shortestPathNodeIds.has(node.id)
+                })
             }
             //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
         })
