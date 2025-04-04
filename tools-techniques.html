@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <head>
+    <meta charset="UTF-8">
     <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
     <title>Creative Coding Tools</title>
     <style>
@@ -30,6 +31,7 @@
         .node-reference:after {
             content: ',';
         }
+
         .code:after {
             margin-right: 1ex;
         }
@@ -121,6 +123,7 @@
     let nodesById = {}
 
     let selectedPath = null
+
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
@@ -238,6 +241,13 @@
         ii.html("")
 
         ii.append("h3").text("Node")
+            .append("span").text("⌖")
+            .on('click', i => {
+                let centerAt = graph.graphData().nodes.find(i => {
+                    return i.id === item.id
+                })
+                graph.centerAt(centerAt.x, centerAt.y, 500)
+            })
         ii.append("p").html(`This is <span class="code">${item.id}</span>`)
         ii.append("p").html(`Node is of type <span class="code">${item.type}</span>`)
 
@@ -317,8 +327,8 @@
                 .data(shortestPaths.paths[pathIndex])
                 .enter()
                 .append("li").text(item => item).attr("class", "node-reference").on('click', (i, data) => {
-                    let target = nodesById[data]
-                    inspectNodeItem(target)
+                let target = nodesById[data]
+                inspectNodeItem(target)
             })
         }
         pi.append("button").text("clear").on('click', i => {
@@ -371,7 +381,7 @@
             let transform = ctx.getTransform()
             let scale = (transform.a + transform.d) / 2.0
 
-            if (shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 8.0 && !shortestPathNodeIds.has(node.id))) {
+            if (shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
                 ctx.fillStyle = 'black';
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
