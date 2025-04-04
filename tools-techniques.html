@@ -28,12 +28,33 @@
             text-decoration: underline;
         }
 
-        .node-reference:after {
-            content: ',';
+        ul {
+            padding: 0;
         }
 
-        .code:after {
-            margin-right: 1ex;
+        li.node-reference {
+            list-style-type: none;
+            margin-left: 0;
+
+        }
+
+        li.node-reference:hover {
+            background: black;
+            color: bisque;
+        }
+
+        span.remove {
+            right: 0;
+            text-align: right;
+            visibility: hidden;
+        }
+        li:hover > span.remove {
+            background: red;
+            visibility: visible;
+        }
+
+        span.node-reference:after {
+            content: ',';
         }
 
         .container {
@@ -117,12 +138,12 @@
     let selectedNodes = new Set();
 
     let pathNodes = []
-    let shortestPath = []
     let shortestPaths = []
     let shortestPathNodeIds = new Set()
     let nodesById = {}
 
     let selectedPath = null
+    let skipPathNodes = new Set()
 
     function buildGraph() {
         const links = [];
@@ -209,9 +230,16 @@
         })
 
         if (pathNodes.length === 2) {
-            shortestPaths = findAllShortestPaths(links, pathNodes[0].id, pathNodes[1].id)
+
+            let filteredLinks = []
+            links.forEach(link => {
+                if (!skipPathNodes.has(link.source) && !skipPathNodes.has(link.target)) {
+                    filteredLinks.push(link)
+                }
+            })
+
+            shortestPaths = findAllShortestPaths(filteredLinks, pathNodes[0].id, pathNodes[1].id)
             shortestPathNodeIds = new Set(shortestPaths.paths.flatMap(it => it))
-            console.log(shortestPathNodeIds)
             const pathCount = shortestPaths.paths.length
             for (let p = 0; p < shortestPaths.paths.length; ++p) {
                 for (let i = 0; i < shortestPaths.paths[p].length - 1; ++i) {
@@ -228,9 +256,9 @@
             }
 
         } else {
-            shortestPath = []
+            skipPathNodes = new Set()
+            shortestPaths = []
         }
-        console.log(nodesById)
         selectedPath = "shortest-path-0"
         inspectPath("shortest-path-0")
         return {"nodes": nodes, "links": links}
@@ -309,31 +337,51 @@
         let pi = d3.select("#path-inspector")
         pi.html("")
 
-        if (!shortestPaths.paths)
-            return
-
+        if (!shortestPaths.paths) {
+            return;
+        }
         const pathIndexMatch = pathName.match(/shortest-path-(\d+)/);
         if (pathIndexMatch) {
-            const pathIndex = parseInt(pathIndexMatch[1], 10);
 
             pi.append("h3").text("Shortest path")
 
-            let source = shortestPaths.paths[pathIndex][0]
-            let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
-            pi.append("p").html(`The shortest path between <span class="code">${source}</span> and <span class="code">${target}</span> is as follows:`)
+            if (shortestPaths.paths.length === 0) {
+                pi.append("p").html(`There is no path that connects <span class="node-reference">${pathNodes[0].id}</span> to <span class="node-reference">${pathNodes[1].id}</span>`)
+            } else {
 
-            let ul = pi.append("ul")
-            ul.selectAll("li")
-                .data(shortestPaths.paths[pathIndex])
-                .enter()
-                .append("li").text(item => item).attr("class", "node-reference").on('click', (i, data) => {
-                let target = nodesById[data]
-                inspectNodeItem(target)
-            })
+
+                const pathIndex = parseInt(pathIndexMatch[1], 10);
+
+
+                let source = shortestPaths.paths[pathIndex][0]
+                let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
+                pi.append("p").html(`The shortest path between <span class="code">${source}</span> and <span class="code">${target}</span> is as follows:`)
+
+                let ul = pi.append("ul")
+                ul.selectAll("li")
+                    .data(shortestPaths.paths[pathIndex])
+                    .enter()
+                    .append("li").text(item => item).attr("class", "node-reference")
+                    .on('click', (i, data) => {
+                        let centerAt = graph.graphData().nodes.find(n => {
+                            return n.id === data
+                        })
+                        graph.centerAt(centerAt.x, centerAt.y, 500)
+                        let target = nodesById[data]
+                        inspectNodeItem(target)
+                    })
+                    .append("span").attr("class", "remove").text("×").on('click', (e, data) => {
+                    //alert(`remove ${data}`)
+                    skipPathNodes.add(data)
+                    graph.graphData(buildGraph())
+                    e.stopPropagation();
+                })
+            }
         }
         pi.append("button").text("clear").on('click', i => {
             shortestPaths = []
             pathNodes = []
+            skipPathNodes = new Set()
             graph.graphData(buildGraph())
         })
     }
