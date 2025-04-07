@@ -85,9 +85,10 @@
         .width(cw)
         .height(ch)
         .linkCurvature('curvature')
+        .nodeLabel(i => { i.label })
         .nodeAutoColorBy('type')
         //.nodeColor( node => selectedNodes.has(node) || 'auto')
-        .graphData(buildGraph())
+        .graphData(buildGraph("ExampleWorkflow"))
         .linkColor('color')
         // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
         //.linkWidth(link => (link.type === selectedPath && 5.0 || 1.0))
@@ -119,6 +120,7 @@
             // }
             //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
         })
+        .linkDirectionalArrowLength(5)
         .nodeCanvasObject((node, ctx, globalScale) => {
             let transform = ctx.getTransform()
             let scale = (transform.a + transform.d) / 2.0
@@ -130,13 +132,13 @@
                 // ctx.fill();
                 // node.__bckgDimensions = [4, 4]
             } else {
-                const label = node.name;
+                const label = node.label;
                 const fontSize = 12 / globalScale;
                 ctx.font = `${fontSize}px Sans-Serif`;
                 const textWidth = ctx.measureText(label).width;
                 const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
 
-                ctx.fillStyle = 'bisque';
+                ctx.fillStyle = 'cadetblue';
                 ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
 
                 ctx.textAlign = 'center';
