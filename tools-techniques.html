@@ -347,12 +347,10 @@
 
         h3.append("span").text("×")
             .on('click', i => {
-                graph.d3Force('link', ogLinkForce)
-
-                // this seems to be the only way to trigger a distance reset?
-                let gd = graph.graphData()
-                graph.graphData({links: [], nodes: []})
-                graph.graphData(gd)
+                graph.graphData().nodes.forEach((i) => { delete i.fx; delete i.fy; })
+                focusGraph.nodes = new Set([])
+                focusGraph.links = new Set([])
+                graph.d3ReheatSimulation()
             })
 
 
