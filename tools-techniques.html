@@ -146,6 +146,7 @@
     let selectedPath = null
     let skipPathNodes = new Set()
 
+    const focusGraph = { nodes: new Set(), links: new Set() }
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
@@ -265,18 +266,80 @@
         return {"nodes": nodes, "links": links}
     }
 
+    function findAdjacentGraph(graphData, node) {
+        let nodes = new Set()
+        let links = []
+        graphData.links.forEach(l => {
+            if (l.source.id === node || l.target.id === node) {
+                links.push(l)
+                if (l.source.id !== node) {
+                    nodes.add(l.source)
+                }
+                if (l.target.id !== node) {
+                    nodes.add(l.target)
+                }
+            }
+        })
+        return {nodes: [...nodes], links: links}
+    }
+
     function inspectNodeItem(item) {
         let ii = d3.select("#item-inspector")
         ii.html("")
 
-        ii.append("h3").text("Node")
-            .append("span").text("⌖")
+        let h3 = ii.append("h3").text("Node")
+
+        h3.append("span").text("⌖")
             .on('click', i => {
                 let centerAt = graph.graphData().nodes.find(i => {
                     return i.id === item.id
                 })
-                graph.centerAt(centerAt.x, centerAt.y, 500)
+
+
+                let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
+                focusGraph.nodes = new Set(adjacentGraph.nodes)
+                focusGraph.links = new Set(adjacentGraph.links)
+
+                console.log(focusGraph.links)
+                //focusGraph = { nodes: new Set(adjacentGraph.nodes), links: new Set(adjacentGraph.links.map(i => i.id)) }
+
+                // let adjacentNodePositions = adjacentNodes.map(i => {
+                //     return [i.x, i.y]
+                // })
+                setTimeout(() => {
+                    let adjacentNodeIds = new Set(adjacentGraph.nodes.map(i => {
+                        return i.id
+                    }))
+
+                    console.log(adjacentNodeIds)
+                    graph.zoomToFit(1000, 50, i => {
+                        return adjacentNodeIds.has(i.id)
+                    })
+                }, 1000)
+
+                console.log(ogLinkForce)
+
+                console.log(graph.d3Force)
+                graph.d3Force('link', d3.forceLink().distance((i) => {
+                    return (i.source.id === item.id || i.target.id === item.id) ? 1.0 : 300.0
+                }));
+                let gd = graph.graphData()
+                graph.graphData({links: [], nodes: []})
+                graph.graphData(gd)
+
             })
+
+        h3.append("span").text("×")
+            .on('click', i => {
+                graph.d3Force('link', ogLinkForce)
+
+                // this seems to be the only way to trigger a distance reset?
+                let gd = graph.graphData()
+                graph.graphData({links: [], nodes: []})
+                graph.graphData(gd)
+            })
+
+
         ii.append("p").html(`This is <span class="code">${item.id}</span>`)
         ii.append("p").html(`Node is of type <span class="code">${item.type}</span>`)
 
@@ -367,13 +430,13 @@
                         inspectNodeItem(target)
                     })
                     .append("span").attr("class", "remove").text("×").on('click', (e, data) => {
-                        //alert(`remove ${data}`)
-                        skipPathNodes.add(data)
-                        graph.graphData(buildGraph())
-                        graph.zoomToFit(1000, 100, node => {
-                            return shortestPathNodeIds.has(node.id)
-                        })
-                        e.stopPropagation();
+                    //alert(`remove ${data}`)
+                    skipPathNodes.add(data)
+                    graph.graphData(buildGraph())
+                    graph.zoomToFit(1000, 100, node => {
+                        return shortestPathNodeIds.has(node.id)
+                    })
+                    e.stopPropagation();
                 })
             }
         }
@@ -387,78 +450,88 @@
 
     let cw = document.getElementById('graph').clientWidth
     let ch = document.getElementById('graph').clientHeight
-    const graph = new ForceGraph()
 
-    (document.getElementById('graph'))
-        .width(cw)
-        .height(ch)
-        .linkCurvature('curvature')
-        .nodeAutoColorBy('type')
-        //.nodeColor( node => selectedNodes.has(node) || 'auto')
-        .graphData(buildGraph())
-        .linkColor('color')
-        // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-        .linkWidth(link => (link.type === selectedPath && 5.0 || 1.0))
-        //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
-        .onLinkClick(link => {
-            if (link.type.includes("shortest-path")) {
-                selectedPath = link.type
-               graph.autoPauseRedraw(false)
+    function buildGraphView() {
 
-                inspectPath(link.type)
-            }
-        })
-        .onNodeClick((node, event) => {
-            if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
-                selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
-            } else { // single-selection
-                inspectNodeItem(node)
-                const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
-                selectedNodes.clear();
-                !untoggle && selectedNodes.add(node);
-            }
+        d3.select("#graph").html("")
+        const graph = new ForceGraph()
+        (document.getElementById('graph'))
+            .width(cw)
+            .height(ch)
+            .linkCurvature('curvature')
+            .nodeAutoColorBy('type')
+            //.nodeColor( node => selectedNodes.has(node) || 'auto')
+            .graphData(buildGraph())
+            .linkColor('color')
+            // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
+            .linkWidth(link => ( (link.type === selectedPath || focusGraph.links.has(link)) && 5.0 || 1.0))
+            //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
+            .onLinkClick(link => {
+                if (link.type.includes("shortest-path")) {
+                    selectedPath = link.type
+                    graph.autoPauseRedraw(false)
 
-            if (selectedNodes.size === 2) {
-                pathNodes = [...selectedNodes]
-                graph.graphData(buildGraph())
-                graph.zoomToFit(1000, 100, node => {
-                    return shortestPathNodeIds.has(node.id)
-                })
-            }
-            //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
-        })
-        .nodeCanvasObject((node, ctx, globalScale) => {
-            let transform = ctx.getTransform()
-            let scale = (transform.a + transform.d) / 2.0
+                    inspectPath(link.type)
+                }
+            })
+            .onNodeClick((node, event) => {
+                if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
+                    selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
+                } else { // single-selection
+                    inspectNodeItem(node)
+                    const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
+                    selectedNodes.clear();
+                    !untoggle && selectedNodes.add(node);
+                }
 
-            if (shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
-                ctx.fillStyle = 'black';
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
-                ctx.fill();
-                node.__bckgDimensions = [4, 4]
-            } else {
-                const label = node.name;
-                const fontSize = 12 / globalScale;
-                ctx.font = `${fontSize}px Sans-Serif`;
-                const textWidth = ctx.measureText(label).width;
-                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
+                if (selectedNodes.size === 2) {
+                    pathNodes = [...selectedNodes]
+                    graph.graphData(buildGraph())
+                    graph.zoomToFit(1000, 100, node => {
+                        return shortestPathNodeIds.has(node.id)
+                    })
+                }
+                //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
+            })
+            .nodeCanvasObject((node, ctx, globalScale) => {
+                let transform = ctx.getTransform()
+                let scale = (transform.a + transform.d) / 2.0
 
-                ctx.fillStyle = 'bisque';
-                ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+                if (shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
+                    ctx.fill();
+                    node.__bckgDimensions = [4, 4]
+                } else {
+                    const label = node.name;
+                    const fontSize = 12 / globalScale;
+                    ctx.font = `${fontSize}px Sans-Serif`;
+                    const textWidth = ctx.measureText(label).width;
+                    const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
 
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = node.color;
-                ctx.fillText(label, node.x, node.y);
-                node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
-            }
-        })
-        .nodePointerAreaPaint((node, color, ctx) => {
-            ctx.fillStyle = color;
-            const bckgDimensions = node.__bckgDimensions;
-            bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
-        });
+                    ctx.fillStyle = 'bisque';
+                    ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = node.color;
+                    ctx.fillText(label, node.x, node.y);
+                    node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+                }
+            })
+            .nodePointerAreaPaint((node, color, ctx) => {
+                ctx.fillStyle = color;
+                const bckgDimensions = node.__bckgDimensions;
+                bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+            });
+        return graph
+    }
+
+    let graph = buildGraphView()
+
+
+    const ogLinkForce = graph.d3Force('link')
 
     d3.select("#checkboxes").append("h3").text("Other links")
     const linkDiv = d3.select("#checkboxes").append("form").append("div")

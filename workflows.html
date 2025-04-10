@@ -8,6 +8,7 @@
             margin: 20px;
             background: cadetblue;
         }
+
         .container {
             width: 100%;
             height: 100vh;
@@ -24,6 +25,12 @@
             flex-grow: 0;
             flex-shrink: 0;
             width: 250px;
+        }
+
+        .code-container {
+            flex-grow: 0;
+            flex-shrink: 1;
+            width: 400px;
         }
 
         #workflows > ul > li {
@@ -48,6 +55,9 @@
     <div class="workflow-container">
         <div id="workflows"></div>
     </div>
+    <div class="code-container">
+        <div id="code"></div>
+    </div>
     <div id="graph"></div>
     <div class="inspector-container"></div>
 </div>
@@ -55,22 +65,34 @@
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
 
+    async function showCode(workflowName) {
+        const code = await d3.text("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
+        d3.select("#code").html("")
+        d3.select("#code").append("pre").text(code)
+    }
+
+
     const workflowListData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/workflows.json")
     console.log(workflowListData)
 
     const workflowGraphData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
     console.log(workflowGraphData)
 
+    showCode("ExampleWorkflow")
+
     function buildGraph(workflowName) {
         //return { nodes: [], links: [] }
         return workflowGraphData[workflowName]
     }
 
+
     d3.select("#workflows").append("ul")
         .selectAll("li")
         .data(Object.values(workflowListData))
         .enter().append("li")
-        .text(i => { return `${i.name} — ${i.description}` })
+        .text(i => {
+            return `${i.name} — ${i.description}`
+        })
         .on('click', (event, data) => {
             graph.graphData(buildGraph(data.name))
         })
@@ -85,8 +107,11 @@
         .width(cw)
         .height(ch)
         .linkCurvature('curvature')
-        .nodeLabel(i => { i.label })
+        .nodeLabel(i => {
+            i.label
+        })
         .nodeAutoColorBy('type')
+
         //.nodeColor( node => selectedNodes.has(node) || 'auto')
         .graphData(buildGraph("ExampleWorkflow"))
         .linkColor('color')
@@ -149,10 +174,12 @@
             }
         })
         .nodePointerAreaPaint((node, color, ctx) => {
-            ctx.fillStyle = color;
-            const bckgDimensions = node.__bckgDimensions;
-            bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
-        });
+                ctx.fillStyle = color;
+                const bckgDimensions = node.__bckgDimensions;
+                bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+            }
+        )
 
+    //    console.log(graph.d3Force('link'))
 </script>
 </body>
