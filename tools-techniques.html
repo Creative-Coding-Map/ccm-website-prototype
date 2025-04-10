@@ -146,7 +146,8 @@
     let selectedPath = null
     let skipPathNodes = new Set()
 
-    const focusGraph = { nodes: new Set(), links: new Set() }
+    const focusGraph = {nodes: new Set(), links: new Set()}
+
     function buildGraph() {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
@@ -295,12 +296,27 @@
                     return i.id === item.id
                 })
 
+                graph.graphData().nodes.forEach((i) => { delete i.fx; delete i.fy; })
 
                 let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
                 focusGraph.nodes = new Set(adjacentGraph.nodes)
                 focusGraph.links = new Set(adjacentGraph.links)
 
                 console.log(focusGraph.links)
+
+                for (let i = 0; i < adjacentGraph.nodes.length; ++i) {
+                    let dx = Math.cos(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                    let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                    adjacentGraph.nodes[i].x = centerAt.x + dx
+                    adjacentGraph.nodes[i].y = centerAt.y + dy
+                    adjacentGraph.nodes[i].fx = centerAt.x + dx
+                    adjacentGraph.nodes[i].fy = centerAt.y + dy
+                }
+                centerAt.fx = centerAt.x
+                centerAt.fy = centerAt.y
+
+                graph.d3ReheatSimulation()
+                //console.log(focusGraph.links)
                 //focusGraph = { nodes: new Set(adjacentGraph.nodes), links: new Set(adjacentGraph.links.map(i => i.id)) }
 
                 // let adjacentNodePositions = adjacentNodes.map(i => {
@@ -312,20 +328,20 @@
                     }))
 
                     console.log(adjacentNodeIds)
-                    graph.zoomToFit(1000, 50, i => {
+                    graph.zoomToFit(1000, 200, i => {
                         return adjacentNodeIds.has(i.id)
                     })
-                }, 1000)
+                }, 0)
 
                 console.log(ogLinkForce)
 
                 console.log(graph.d3Force)
-                graph.d3Force('link', d3.forceLink().distance((i) => {
-                    return (i.source.id === item.id || i.target.id === item.id) ? 1.0 : 300.0
-                }));
-                let gd = graph.graphData()
-                graph.graphData({links: [], nodes: []})
-                graph.graphData(gd)
+                // graph.d3Force('link', d3.forceLink().distance((i) => {
+                //     return (i.source.id === item.id || i.target.id === item.id) ? 1.0 : 300.0
+                // }));
+                // let gd = graph.graphData()
+                // graph.graphData({links: [], nodes: []})
+                // graph.graphData(gd)
 
             })
 
@@ -464,7 +480,7 @@
             .graphData(buildGraph())
             .linkColor('color')
             // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-            .linkWidth(link => ( (link.type === selectedPath || focusGraph.links.has(link)) && 5.0 || 1.0))
+            .linkWidth(link => ((link.type === selectedPath || focusGraph.links.has(link)) && 5.0 || 1.0))
             //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
             .onLinkClick(link => {
                 if (link.type.includes("shortest-path")) {
