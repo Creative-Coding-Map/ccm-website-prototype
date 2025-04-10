@@ -9,6 +9,67 @@
             background: bisque;
         }
 
+        #search {
+            z-index: 10;
+            position: absolute;
+            width: 500px;
+            left: 0px;
+            right: 0px;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: -500px;
+            background-color: white;
+            border-color: black;
+            border-width: 1px;
+            border-style: solid;
+
+        }
+
+        #search-query {
+        }
+
+        #search-results {
+        }
+        #search {
+
+
+            & input {
+                background-color: transparent;
+                font-size: 32px;
+                border: 0;
+                appearance: none;
+                width: 100%;
+                margin-bottom: 0;
+                padding-bottom: 0;
+                outline: none;
+            }
+
+            & input:focus {
+                appearance: none;
+
+            }
+
+            & ul {
+                margin-top: 0;
+                margin-bottom: 0;
+                padding-left: 0;
+                margin-left: 20px;
+            }
+
+            & ul > li {
+                line-height: 1.5em;
+            }
+
+            & ul > li:hover {
+                background-color: black;
+                color: white;
+            }
+        }
+
+        .invisible {
+            visibility: hidden;
+        }
+
         #path-inspector {
             width: 100%;
         }
@@ -51,7 +112,7 @@
 
         li:hover > span.remove {
             background: red;
-            visibility: visible;
+            visibility: visible !important;
         }
 
         span.node-reference:after {
@@ -101,10 +162,60 @@
         <div id="item-inspector"></div>
     </div>
 </div>
+<div id="search" class="invisible">
+    <input id="search-query"/>
+    <div id="search-results"></div>
+</div>
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
     import {findAllShortestPaths} from "./dijkstra.js"
+
+    window.addEventListener('keydown', (e) => {
+        if (e.keyCode === 32 && e.target === document.body) {
+            e.preventDefault();
+            if (d3.select("#search").classed("invisible")) {
+                console.log("adding class")
+                d3.select("#search").attr("class", "")
+                d3.select("#search-query").node().focus()
+            }
+
+        }
+    });
+
+    const searchQuery = d3.select("#search-query")
+    searchQuery.on('keyup', e => {
+        if (e.keyCode == 27) {
+            if (searchQuery.property("value").length == 0) {
+                d3.select("#search").attr("class", "invisible")
+
+            } else {
+                searchQuery.property("value", "")
+                d3.select("#search-results").html("")
+            }
+        } else {
+            const query = searchQuery.property("value")
+            let hits = []
+            if (query.length > 0) {
+                toolData.forEach(i => {
+                    if (i[0].toLowerCase().includes(query)) {
+                        hits.push(i[0])
+                    }
+                })
+            }
+            hits = hits.slice(0, 10)
+            const results = d3.select("#search-results")
+            results.html("")
+            results.append('ul').selectAll("li").data(hits).enter().append("li").text(i => i).on('click', (e,i) => {
+                let centerAt = graph.graphData().nodes.find(j => {
+                    return j.id === i
+                })
+                graph.centerAt(centerAt.x, centerAt.y, 500)
+                inspectNodeItem(nodesById[i])
+                d3.select("#search").attr("class", "invisible")
+            })
+        }
+    })
 
     let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
     const toolData = Object.entries(data.tools)
@@ -296,7 +407,10 @@
                     return i.id === item.id
                 })
 
-                graph.graphData().nodes.forEach((i) => { delete i.fx; delete i.fy; })
+                graph.graphData().nodes.forEach((i) => {
+                    delete i.fx;
+                    delete i.fy;
+                })
 
                 let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
                 focusGraph.nodes = new Set(adjacentGraph.nodes)
@@ -305,12 +419,14 @@
                 console.log(focusGraph.links)
 
                 for (let i = 0; i < adjacentGraph.nodes.length; ++i) {
-                    let dx = Math.cos(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
-                    let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
-                    adjacentGraph.nodes[i].x = centerAt.x + dx
-                    adjacentGraph.nodes[i].y = centerAt.y + dy
-                    adjacentGraph.nodes[i].fx = centerAt.x + dx
-                    adjacentGraph.nodes[i].fy = centerAt.y + dy
+                    setTimeout(() => {
+                        let dx = Math.cos(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        adjacentGraph.nodes[i].x = centerAt.x + dx
+                        adjacentGraph.nodes[i].y = centerAt.y + dy
+                        adjacentGraph.nodes[i].fx = centerAt.x + dx
+                        adjacentGraph.nodes[i].fy = centerAt.y + dy
+                    }, i * 50)
                 }
                 centerAt.fx = centerAt.x
                 centerAt.fy = centerAt.y
@@ -331,7 +447,7 @@
                     graph.zoomToFit(1000, 200, i => {
                         return adjacentNodeIds.has(i.id)
                     })
-                }, 0)
+                }, adjacentGraph.nodes.length * 50)
 
                 console.log(ogLinkForce)
 
@@ -347,7 +463,10 @@
 
         h3.append("span").text("×")
             .on('click', i => {
-                graph.graphData().nodes.forEach((i) => { delete i.fx; delete i.fy; })
+                graph.graphData().nodes.forEach((i) => {
+                    delete i.fx;
+                    delete i.fy;
+                })
                 focusGraph.nodes = new Set([])
                 focusGraph.links = new Set([])
                 graph.d3ReheatSimulation()
@@ -511,7 +630,7 @@
                 let transform = ctx.getTransform()
                 let scale = (transform.a + transform.d) / 2.0
 
-                if (shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
+                if ((focusGraph.nodes.size > 0 && !focusGraph.nodes.has(node)) || shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
                     ctx.fillStyle = 'black';
                     ctx.beginPath();
                     ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
