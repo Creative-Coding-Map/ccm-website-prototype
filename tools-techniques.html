@@ -378,16 +378,16 @@
         return {"nodes": nodes, "links": links}
     }
 
-    function findAdjacentGraph(graphData, node) {
+    function findAdjacentGraph(graphData, nodeId) {
         let nodes = new Set()
         let links = []
         graphData.links.forEach(l => {
-            if (l.source.id === node || l.target.id === node) {
+            if (l.source.id === nodeId || l.target.id === nodeId) {
                 links.push(l)
-                if (l.source.id !== node) {
+                if (l.source.id !== nodeId) {
                     nodes.add(l.source)
                 }
-                if (l.target.id !== node) {
+                if (l.target.id !== nodeId) {
                     nodes.add(l.target)
                 }
             }
@@ -401,6 +401,10 @@
 
         let h3 = ii.append("h3").text("Node")
 
+        let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
+        focusGraph.nodes = new Set([])
+        focusGraph.links = new Set(adjacentGraph.links)
+        graph.autoPauseRedraw(false)
         h3.append("span").text("⌖")
             .on('click', i => {
                 let centerAt = graph.graphData().nodes.find(i => {
@@ -413,7 +417,7 @@
                 })
 
                 let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
-                focusGraph.nodes = new Set(adjacentGraph.nodes)
+                focusGraph.nodes = new Set(adjacentGraph.nodes.concat([item]))
                 focusGraph.links = new Set(adjacentGraph.links)
 
                 console.log(focusGraph.links)
@@ -432,12 +436,6 @@
                 centerAt.fy = centerAt.y
 
                 graph.d3ReheatSimulation()
-                //console.log(focusGraph.links)
-                //focusGraph = { nodes: new Set(adjacentGraph.nodes), links: new Set(adjacentGraph.links.map(i => i.id)) }
-
-                // let adjacentNodePositions = adjacentNodes.map(i => {
-                //     return [i.x, i.y]
-                // })
                 setTimeout(() => {
                     let adjacentNodeIds = new Set(adjacentGraph.nodes.map(i => {
                         return i.id
@@ -448,17 +446,6 @@
                         return adjacentNodeIds.has(i.id)
                     })
                 }, adjacentGraph.nodes.length * 50)
-
-                console.log(ogLinkForce)
-
-                console.log(graph.d3Force)
-                // graph.d3Force('link', d3.forceLink().distance((i) => {
-                //     return (i.source.id === item.id || i.target.id === item.id) ? 1.0 : 300.0
-                // }));
-                // let gd = graph.graphData()
-                // graph.graphData({links: [], nodes: []})
-                // graph.graphData(gd)
-
             })
 
         h3.append("span").text("×")
