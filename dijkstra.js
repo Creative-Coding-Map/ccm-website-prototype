@@ -195,6 +195,76 @@ function findAllShortestPaths(edges, start, end) {
     };
 }
 
+/**
+* Find the minimum spanning tree using Prim's algorithm
+* @param {Array<{source: string, target: string, weight: number}>} edges - Array of edge objects
+* @param {string} startNode - Starting node for the MST
+* @returns {Object} - Object containing the total weight and edges of the MST
+*/
+function minimumSpanningTree(edges, startNode) {
+
+    console.log(edges)
+
+    // Build adjacency list from edges (bidirectional)
+    const graph = buildUndirectedGraph(edges);
+
+    console.log(graph)
+    // If the graph is empty or the start node doesn't exist
+    if (!graph[startNode]) {
+        console.log(`start node '${startNode}' not in graph`)
+        return { totalWeight: 0, mstEdges: [] };
+    }
+
+    // Set of nodes included in MST
+    const included = new Set([startNode]);
+
+    // Edges in the MST
+    const mstEdges = [];
+
+    // Total weight of the MST
+    let totalWeight = 0;
+
+    // Continue until all connected nodes are included
+    while (included.size < Object.keys(graph).length) {
+        let minEdge = null;
+        let minWeight = Infinity;
+        let nextNode = null;
+
+        // Find the minimum weight edge connecting an included node to a non-included node
+        for (const node of included) {
+            for (const neighbor in graph[node]) {
+                if (!included.has(neighbor) && graph[node][neighbor] < minWeight) {
+                    minWeight = graph[node][neighbor];
+                    minEdge = { source: node, target: neighbor, weight: minWeight };
+                    nextNode = neighbor;
+                }
+            }
+        }
+
+        // If no edge is found, the graph is disconnected
+        if (!nextNode) {
+            break;
+        }
+
+        // Add the edge to MST
+        mstEdges.push(minEdge);
+        totalWeight += minWeight;
+
+        // Include the new node
+        included.add(nextNode);
+    }
+
+    // Check if MST includes all nodes
+    if (included.size < Object.keys(graph).length) {
+        console.warn('The graph is disconnected. The MST only covers a portion of the graph.');
+    }
+
+    return {
+        totalWeight,
+        mstEdges,
+        includedNodes: Array.from(included)
+    };
+}
 
 /**
  * Build an adjacency list graph from an array of edges, treating all edges as undirected
@@ -202,12 +272,20 @@ function findAllShortestPaths(edges, start, end) {
  * @returns {Object} Adjacency list for an undirected graph
  */
 function buildUndirectedGraph(edges) {
+
+
+    console.log("building graph from edges")
+    console.log(edges)
     const graph = {};
 
     // Initialize graph with empty adjacency lists
     for (const edge of edges) {
-        if (!graph[edge.source]) graph[edge.source] = {};
-        if (!graph[edge.target]) graph[edge.target] = {};
+
+        let source = edge.source.id || edge.source
+        let target = edge.target.id || edge.target
+
+        if (!graph[source]) graph[source] = {};
+        if (!graph[target]) graph[target] = {};
     }
 
     // Fill adjacency lists with weights (bidirectional)
@@ -215,11 +293,16 @@ function buildUndirectedGraph(edges) {
         // Assuming the weight property exists, otherwise default to 1
         const weight = edge.weight !== undefined ? edge.weight : 1;
 
+        let source = edge.source.id || edge.source
+        let target = edge.target.id || edge.target
+
         // Add edge in both directions
-        graph[edge.source][edge.target] = weight;
-        graph[edge.target][edge.source] = weight; // This is the key change for undirected graphs
+        graph[source][target] = weight;
+        graph[target][source] = weight; // This is the key change for undirected graphs
     }
 
+    console.log("I made a graph")
+    console.log(graph)
     return graph;
 }
 //
@@ -239,4 +322,4 @@ function buildUndirectedGraph(edges) {
 // console.log(`Shortest path: ${result.path.join(' -> ')}`);
 // }
 
-export {  findShortestPath, findAllShortestPaths }
+export {  findShortestPath, findAllShortestPaths, minimumSpanningTree }

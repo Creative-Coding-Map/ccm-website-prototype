@@ -22,16 +22,35 @@
             border-color: black;
             border-width: 1px;
             border-style: solid;
-
         }
 
         #search-query {
         }
 
         #search-results {
-        }
-        #search {
+            & ul {
+                margin-top: 0;
+                margin-bottom: 0;
+                padding-left: 0;
+                list-style-type: none;
+            }
 
+            & li:first-child {
+                margin-top: 20px;
+            }
+
+            & ul > li {
+                line-height: 1.5em;
+            }
+
+            & ul > li:hover {
+                background-color: black;
+                color: white;
+            }
+        }
+
+        #search {
+            padding: 10px;
 
             & input {
                 background-color: transparent;
@@ -46,23 +65,6 @@
 
             & input:focus {
                 appearance: none;
-
-            }
-
-            & ul {
-                margin-top: 0;
-                margin-bottom: 0;
-                padding-left: 0;
-                margin-left: 20px;
-            }
-
-            & ul > li {
-                line-height: 1.5em;
-            }
-
-            & ul > li:hover {
-                background-color: black;
-                color: white;
             }
         }
 
@@ -131,6 +133,10 @@
             flex-shrink: 1;
         }
 
+        #index {
+            column-count: 5;
+        }
+
         .filter-container {
             flex-grow: 0;
             flex-shrink: 0;
@@ -144,10 +150,7 @@
         }
 
         #graph {
-
             height: 100vh;
-
-
         }
     </style>
 </head>
@@ -166,20 +169,19 @@
     <input id="search-query"/>
     <div id="search-results"></div>
 </div>
+
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
-    import {findAllShortestPaths} from "./dijkstra.js"
+    import {findAllShortestPaths, minimumSpanningTree} from "./dijkstra.js"
 
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 32 && e.target === document.body) {
             e.preventDefault();
             if (d3.select("#search").classed("invisible")) {
-                console.log("adding class")
                 d3.select("#search").attr("class", "")
                 d3.select("#search-query").node().focus()
             }
-
         }
     });
 
@@ -206,16 +208,24 @@
             hits = hits.slice(0, 10)
             const results = d3.select("#search-results")
             results.html("")
-            results.append('ul').selectAll("li").data(hits).enter().append("li").text(i => i).on('click', (e,i) => {
-                let centerAt = graph.graphData().nodes.find(j => {
-                    return j.id === i
-                })
-                graph.centerAt(centerAt.x, centerAt.y, 500)
-                inspectNodeItem(nodesById[i])
-                d3.select("#search").attr("class", "invisible")
-            })
+            results.append('ul').selectAll("li").data(hits).enter().append("li")
+                .text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (e, i) => {
+                        let centerAt = graph.graphData().nodes.find(j => {
+                            return j.id === i
+                        })
+                        graph.centerAt(centerAt.x, centerAt.y, 500)
+                        inspectNodeItem(nodesById[i])
+                        d3.select("#search").attr("class", "invisible")
+                    }
+                )
         }
     })
+
+    function hideSearch() {
+        d3.select("#search").attr("class", "invisible")
+    }
 
     let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
     const toolData = Object.entries(data.tools)
@@ -259,14 +269,14 @@
 
     const focusGraph = {nodes: new Set(), links: new Set()}
 
-    function buildGraph() {
+    function buildGraph(mst) {
         const links = [];
         const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
         nodesById = {}
         toolData.forEach(n => {
             const tooln = toolNodes.find(it => it.name === n[0])
             nodesById[n[0]] = tooln
-            if (enableToolTagLinks) {
+            if (enableToolTagLinks && !mst) {
                 (n[1].tags || []).forEach(t => {
                     if (activeTags.has(t)) {
                         const tn = tagNodes.find(it => it.name === t)
@@ -281,7 +291,7 @@
                     }
                 });
             }
-            if (enableDependencyLinks) {
+            if (enableDependencyLinks && !mst) {
                 (n[1].dependsOn || []).forEach(t => {
                     const dependn = toolNodes.find(it => it.name === t)
                     if (dependn) {
@@ -295,7 +305,7 @@
                     }
                 })
             }
-            if (enableSupportLinks) {
+            if (enableSupportLinks && !mst) {
                 (n[1].supports || []).forEach(t => {
                     const supportn = toolNodes.find(it => it.name === t)
                     if (supportn) {
@@ -309,7 +319,7 @@
                     }
                 })
             }
-            if (enableTechniqueLinks) {
+            if (enableTechniqueLinks && !mst) {
                 Object.entries(n[1].actions || {}).forEach(a => {
                     (a[1].techniques || []).forEach(t => {
                         const link = {
@@ -320,6 +330,13 @@
                         links.push(link)
                     })
                 })
+            }
+
+            if (mst) {
+                for (let link of mst) {
+                    console.log(link)
+                    links.push(link)
+                }
             }
         })
 
@@ -405,6 +422,8 @@
         focusGraph.nodes = new Set([])
         focusGraph.links = new Set(adjacentGraph.links)
         graph.autoPauseRedraw(false)
+
+        // focus on node
         h3.append("span").text("⌖")
             .on('click', i => {
                 let centerAt = graph.graphData().nodes.find(i => {
@@ -416,16 +435,33 @@
                     delete i.fy;
                 })
 
-                let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
-                focusGraph.nodes = new Set(adjacentGraph.nodes.concat([item]))
-                focusGraph.links = new Set(adjacentGraph.links)
 
-                console.log(focusGraph.links)
+                const mst = minimumSpanningTree(graph.graphData().links, item.id)
+
+                graph.graphData(buildGraph(mst.mstEdges))
+
+                setTimeout(() => {
+                    let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
+                    focusGraph.links = new Set(adjacentGraph.links)
+
+                }, 1000)
 
                 for (let i = 0; i < adjacentGraph.nodes.length; ++i) {
                     setTimeout(() => {
-                        let dx = Math.cos(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
-                        let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        //let dx = Math.cos(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        //let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        let dx = adjacentGraph.nodes[i].x - centerAt.x
+                        let dy = adjacentGraph.nodes[i].y - centerAt.y
+                        let l = Math.sqrt(dx* dx+ dy*dy)
+
+                        if (l > 0.0) {
+                            dx /= l
+                            dy /= l
+                        }
+                        dx *= 30.0;
+                        dy *= 30.0;
+
+
                         adjacentGraph.nodes[i].x = centerAt.x + dx
                         adjacentGraph.nodes[i].y = centerAt.y + dy
                         adjacentGraph.nodes[i].fx = centerAt.x + dx
@@ -446,6 +482,7 @@
                         return adjacentNodeIds.has(i.id)
                     })
                 }, adjacentGraph.nodes.length * 50)
+
             })
 
         h3.append("span").text("×")
@@ -454,11 +491,11 @@
                     delete i.fx;
                     delete i.fy;
                 })
+                graph.graphData(buildGraph())
+
                 focusGraph.nodes = new Set([])
                 focusGraph.links = new Set([])
-                graph.d3ReheatSimulation()
             })
-
 
         ii.append("p").html(`This is <span class="code">${item.id}</span>`)
         ii.append("p").html(`Node is of type <span class="code">${item.type}</span>`)
@@ -586,7 +623,11 @@
             // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
             .linkWidth(link => ((link.type === selectedPath || focusGraph.links.has(link)) && 5.0 || 1.0))
             //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
+            .onBackgroundClick(() => {
+                hideSearch()
+            })
             .onLinkClick(link => {
+                hideSearch()
                 if (link.type.includes("shortest-path")) {
                     selectedPath = link.type
                     graph.autoPauseRedraw(false)
@@ -595,6 +636,7 @@
                 }
             })
             .onNodeClick((node, event) => {
+                hideSearch()
                 if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
                     selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
                 } else { // single-selection
@@ -649,9 +691,6 @@
     }
 
     let graph = buildGraphView()
-
-
-    const ogLinkForce = graph.d3Force('link')
 
     d3.select("#checkboxes").append("h3").text("Other links")
     const linkDiv = d3.select("#checkboxes").append("form").append("div")
