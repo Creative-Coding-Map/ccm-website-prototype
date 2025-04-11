@@ -5,8 +5,10 @@
     <title>Creative Coding Tools</title>
     <style>
         body {
-            margin: 20px;
+            margin: 0 0 0 0;
             background: bisque;
+            height: 100vh;
+            font-family: sans-serif;
         }
 
         #search {
@@ -118,19 +120,54 @@
         }
 
         span.node-reference:after {
-            content: ',';
+        //    content: ',';
+        }
+        body {
+            #border {
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                box-sizing: border-box;
+
+            }
+            &.focused {
+                .container {
+                    outline-width: 2px;
+                    outline-style: solid;
+                    outline-color: rgba(0,0,0,0.4);
+                }
+                #border {
+                    //background-color: palegreen;
+                }
+                .if-not-focused {
+                    visibility: hidden;
+                }
+            }
+        }
+
+
+        #border-top {
+            height: 0px;
+            text-align: center;
         }
 
         .container {
-            width: 100%;
-            height: 100vh;
+            position: absolute;
+            margin: 30px 30px 30px 30px;
+            width: calc(100% - 60px);
+            height: calc(100% - 60px);
             display: flex;
             flex-direction: row;
+            background-color: bisque;
+            overflow-y: hidden;
         }
 
         #graph {
+            position: relative;
             flex-grow: 1;
             flex-shrink: 1;
+
         }
 
         #index {
@@ -155,14 +192,14 @@
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="filter-container">
-        <div id="checkboxes"></div>
-    </div>
-    <div id="graph"></div>
-    <div class="inspector-container">
-        <div id="path-inspector"></div>
-        <div id="item-inspector"></div>
+<div id="border">
+    <div id="border-top"></div>
+    <div class="container">
+        <div id="graph"></div>
+        <div class="inspector-container">
+            <div id="path-inspector"></div>
+            <div id="item-inspector"></div>
+        </div>
     </div>
 </div>
 <div id="search" class="invisible">
@@ -394,6 +431,28 @@
         return {"nodes": nodes, "links": links}
     }
 
+
+    function setFocus(text) {
+        if (text) {
+            d3.select("body").attr("class", "focused")
+            d3.select("#border-top").html(text)
+            d3.select("#border-top").append("span").text("×")
+
+        } else {
+            d3.select("body").attr("class", null)
+            d3.select("#border-top").html("")
+        }
+    }
+
+    d3.select("#border-top").on('click', () => {
+        shortestPaths = []
+        shortestPathNodeIds = new Set([])
+        focusGraph.nodes = new Set([])
+        focusGraph.links = new Set([])
+        graph.graphData(buildGraph())
+        setFocus();
+    })
+
     function findAdjacentGraph(graphData, nodeId) {
         let nodes = new Set()
         let links = []
@@ -423,8 +482,9 @@
         graph.autoPauseRedraw(false)
 
         // focus on node
-        h3.append("span").text("⌖")
+        h3.append("span").attr("class", "if-not-focused").text("⌖")
             .on('click', i => {
+                setFocus(`Focused on ${item.type} <span class="node-reference">${item.id}</span>`)
                 let centerAt = graph.graphData().nodes.find(i => {
                     return i.id === item.id
                 })
@@ -483,17 +543,6 @@
 
             })
 
-        h3.append("span").text("×")
-            .on('click', i => {
-                graph.graphData().nodes.forEach((i) => {
-                    delete i.fx;
-                    delete i.fy;
-                })
-                graph.graphData(buildGraph())
-
-                focusGraph.nodes = new Set([])
-                focusGraph.links = new Set([])
-            })
 
         ii.append("p").html(`This is <span class="code">${item.id}</span>`)
         ii.append("p").html(`Node is of type <span class="code">${item.type}</span>`)
@@ -565,9 +614,15 @@
             let h3 = pi.append("h3").text("Shortest path")
 
             // focus on path
-            h3.append("span").text("⌖").on('click', (e, i) => {
+            h3.append("span").attr("class", "if-not-focused").text("⌖").on('click', (e, i) => {
+
                 const pathIndex = parseInt(pathIndexMatch[1], 10);
                 const path = shortestPaths.paths[pathIndex]
+                let source = shortestPaths.paths[pathIndex][0]
+                let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
+
+                setFocus(`Focused on path <span class="node-reference">${source}</span>—<span class="node-reference">${target}</span>`)
+
                 const subTree = []
                 for (let i = 0; i < path.length - 1; ++i) {
                     subTree.push({source: path[i], target: path[i + 1], weight: 1})
@@ -585,6 +640,7 @@
                 const pathIndex = parseInt(pathIndexMatch[1], 10);
                 let source = shortestPaths.paths[pathIndex][0]
                 let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
+
                 pi.append("p").html(`The shortest path between <span class="code">${source}</span> and <span class="code">${target}</span> is as follows:`)
 
                 let ul = pi.append("ul")
@@ -611,7 +667,7 @@
                 })
             }
         }
-        pi.append("button").text("clear").on('click', i => {
+        pi.append("button").attr("class", "if-not-focused").text("clear").on('click', i => {
             shortestPaths = []
             pathNodes = []
             skipPathNodes = new Set()
@@ -705,75 +761,6 @@
     }
 
     let graph = buildGraphView()
-
-    d3.select("#checkboxes").append("h3").text("Other links")
-    const linkDiv = d3.select("#checkboxes").append("form").append("div")
-    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "tool-tags")
-        .on("change", it => {
-            enableToolTagLinks = !enableToolTagLinks
-            graph.graphData(buildGraph())
-        })
-    linkDiv.append("label").attr("for", "tool-tags").text("tool tag links")
-    linkDiv.append("div")
-
-    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "technique-tags")
-        .on("change", it => {
-            enableTechniqueTagLinks = !enableTechniqueTagLinks
-            graph.graphData(buildGraph())
-        })
-    linkDiv.append("label").attr("for", "tool-tags").text("technique tag links")
-    linkDiv.append("div")
-
-    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "dependencies")
-        .on("change", it => {
-            enableDependencyLinks = !enableDependencyLinks
-            graph.graphData(buildGraph())
-        })
-    linkDiv.append("label").attr("for", "dependencies").text("dependency links")
-
-    linkDiv.append("div")
-    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "support")
-        .on("change", it => {
-            enableSupportLinks = !enableSupportLinks
-            graph.graphData(buildGraph())
-        })
-    linkDiv.append("label").attr("for", "support").text("support links")
-
-    linkDiv.append("div")
-    linkDiv.append("input").attr("checked", "").attr("type", "checkbox").attr("id", "techniques")
-        .on("change", it => {
-            enableTechniqueLinks = !enableTechniqueLinks
-            graph.graphData(buildGraph())
-        })
-    linkDiv.append("label").attr("for", "techniques").text("technique links")
-
-
-    d3.select("#checkboxes").append("h3").text("Tag links")
-    const checkBoxForm = d3.select("#checkboxes").append("form")
-    const divs = checkBoxForm.selectAll("div")
-        .data(tags)
-        .enter()
-        .append("div")
-
-    divs
-        .append("input")
-        .attr("id", it => it)
-        .attr("checked", "")
-        .attr("type", "checkbox")
-        .on("change", it => {
-            const tag = it.target.__data__
-            if (activeTags.has(tag)) {
-                activeTags.delete(tag)
-            } else {
-                activeTags.add(tag)
-            }
-            graph.graphData(buildGraph())
-        })
-
-    divs
-        .append("label")
-        .attr("for", it => it)
-        .text(it => it)
 
 </script>
 </body>
