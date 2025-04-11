@@ -437,7 +437,6 @@
             d3.select("body").attr("class", "focused")
             d3.select("#border-top").html(text)
             d3.select("#border-top").append("span").text("×")
-
         } else {
             d3.select("body").attr("class", null)
             d3.select("#border-top").html("")
@@ -449,6 +448,11 @@
         shortestPathNodeIds = new Set([])
         focusGraph.nodes = new Set([])
         focusGraph.links = new Set([])
+        graph.graphData().nodes.forEach((i) => {
+            delete i.fx;
+            delete i.fy;
+        })
+
         graph.graphData(buildGraph())
         setFocus();
     })
@@ -691,7 +695,7 @@
             .graphData(buildGraph())
             .linkColor('color')
             // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-            .linkWidth(link => ((link.type === selectedPath || focusGraph.links.has(link)) && 5.0 || 1.0))
+            .linkWidth(link => (((link.type === selectedPath && 5.0) || (focusGraph.links.has(link)) && 2.0) || 0.5))
             //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
             .onBackgroundClick(() => {
                 hideSearch()
@@ -732,13 +736,13 @@
                 if ((focusGraph.nodes.size > 0 && !focusGraph.nodes.has(node)) || shortestPaths.paths && shortestPathNodeIds.size > 0 && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
                     ctx.fillStyle = 'black';
                     ctx.beginPath();
-                    ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
+                    ctx.arc(node.x, node.y, 2 / globalScale, 0, 2 * Math.PI, false);
                     ctx.fill();
                     node.__bckgDimensions = [4, 4]
                 } else {
                     const label = node.name;
-                    const fontSize = 12 / globalScale;
-                    ctx.font = `${fontSize}px Sans-Serif`;
+                    const fontSize = 16 / globalScale;
+                    ctx.font = `${fontSize}px Space Mono`;
                     const textWidth = ctx.measureText(label).width;
                     const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
 
