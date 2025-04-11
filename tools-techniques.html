@@ -173,7 +173,7 @@
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
-    import {findAllShortestPaths, minimumSpanningTree} from "./dijkstra.js"
+    import {findAllShortestPaths, minimumSpanningTree, minimumSpanningTreeFromSubtree} from "./dijkstra.js"
 
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 32 && e.target === document.body) {
@@ -334,7 +334,6 @@
 
             if (mst) {
                 for (let link of mst) {
-                    console.log(link)
                     links.push(link)
                 }
             }
@@ -452,7 +451,7 @@
                         //let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
                         let dx = adjacentGraph.nodes[i].x - centerAt.x
                         let dy = adjacentGraph.nodes[i].y - centerAt.y
-                        let l = Math.sqrt(dx* dx+ dy*dy)
+                        let l = Math.sqrt(dx * dx + dy * dy)
 
                         if (l > 0.0) {
                             dx /= l
@@ -477,7 +476,6 @@
                         return i.id
                     }))
 
-                    console.log(adjacentNodeIds)
                     graph.zoomToFit(1000, 200, i => {
                         return adjacentNodeIds.has(i.id)
                     })
@@ -563,7 +561,23 @@
         }
         const pathIndexMatch = pathName.match(/shortest-path-(\d+)/);
         if (pathIndexMatch) {
-            pi.append("h3").text("Shortest path")
+
+            let h3 = pi.append("h3").text("Shortest path")
+
+            // focus on path
+            h3.append("span").text("⌖").on('click', (e, i) => {
+                const pathIndex = parseInt(pathIndexMatch[1], 10);
+                const path = shortestPaths.paths[pathIndex]
+                const subTree = []
+                for (let i = 0; i < path.length - 1; ++i) {
+                    subTree.push({source: path[i], target: path[i + 1], weight: 1})
+                }
+                const mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subTree)
+                graph.graphData(buildGraph(mst.mstEdges))
+                focusGraph.nodes = new Set()
+                focusGraph.links = new Set()
+                shortestPathNodeIds = new Set()
+            })
 
             if (shortestPaths.paths.length === 0) {
                 pi.append("p").html(`There is no path that connects <span class="node-reference">${pathNodes[0].id}</span> to <span class="node-reference">${pathNodes[1].id}</span>`)
@@ -659,7 +673,7 @@
                 let transform = ctx.getTransform()
                 let scale = (transform.a + transform.d) / 2.0
 
-                if ((focusGraph.nodes.size > 0 && !focusGraph.nodes.has(node)) || shortestPaths.paths && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
+                if ((focusGraph.nodes.size > 0 && !focusGraph.nodes.has(node)) || shortestPaths.paths && shortestPathNodeIds.size > 0 && !shortestPathNodeIds.has(node.id) || (node.type !== "tag" && scale < 4.0 && !shortestPathNodeIds.has(node.id))) {
                     ctx.fillStyle = 'black';
                     ctx.beginPath();
                     ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
