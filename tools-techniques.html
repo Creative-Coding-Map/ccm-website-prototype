@@ -13,16 +13,15 @@
             background: bisque;
             height: 100vh;
             font-family: "Inter", serif;
-            font-weight: 200;
-
+            font-weight: 200
         }
 
         #search {
             z-index: 10;
             position: absolute;
             width: 500px;
-            left: 0px;
-            right: 0px;
+            left: 0;
+            right: 0;
             margin-left: auto;
             margin-right: auto;
             margin-top: -500px;
@@ -115,31 +114,29 @@
             height: 0;
             overflow-y: hidden;
             transition: height 1s;
-            margin-left: 3em;
+            margin-left: 1em;
         }
 
         li.path-item {
             display: block;
             margin-left: 0;
             padding-left: 0;
-            list-style-position: inside;
+            list-style-position: outside;
             list-style-type: decimal-leading-zero;
-
-
         }
-
 
         li.path-item:hover + li > span {
             background-color: black;
             color: bisque;
         }
+
         li.path-item:before {
-            display: inline-block;
+            //display: inline-block;
             content: counter(item, decimal-leading-zero) " ";
             counter-increment: item;
-            width: 3em;
-
-
+            width: 1em;
+            vertical-align: super;
+            font-size: 10px;
         }
 
         li.path-item:hover {
@@ -716,15 +713,12 @@
 
                 li.append("span").text(data => data.cur).attr("class", "node-reference")
                     .on('click', (i, data) => {
-                        let centerAt = graph.graphData().nodes.find(n => {
-                            return n.id === data.cur
-                        })
+                        let centerAt = graph.graphData().nodes.find(n => n.id === data.cur)
                         graph.centerAt(centerAt.x, centerAt.y, 500)
-                        let target = nodesById[data]
+                        let target = nodesById[data.cur]
                         inspectNodeItem(target)
                     })
                 li.append("span").attr("class", "remove").text("×").on('click', (e, data) => {
-                    //alert(`remove ${data}`)
                     skipPathNodes.add(data.cur)
                     graph.graphData(buildGraph())
                     graph.zoomToFit(1000, 100, node => {
@@ -764,9 +758,7 @@
 
                             case 'technique': {
                                 text = `A technique.`
-
                             }
-
                         }
                     }
 
@@ -786,7 +778,6 @@
     let ch = document.getElementById('graph').clientHeight
 
     function buildGraphView() {
-
         d3.select("#graph").html("")
         const graph = new ForceGraph()
         (document.getElementById('graph'))
