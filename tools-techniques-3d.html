@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+          rel="stylesheet">
+    <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
+    <title>Creative Coding Tools</title>
+    <style>
+        body {
+            margin: 0 0 0 0;
+            background: bisque;
+            height: 100vh;
+            font-family: "Inter", serif;
+            font-weight: 200
+        }
+
+        #search {
+            z-index: 10;
+            position: absolute;
+            width: 500px;
+            left: 0;
+            right: 0;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: -500px;
+            background-color: white;
+            border-color: black;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        #search-query {
+        }
+
+        #search-results {
+            & ul {
+                margin-top: 0;
+                margin-bottom: 0;
+                padding-left: 0;
+                list-style-type: none;
+            }
+
+            & li:first-child {
+                margin-top: 20px;
+            }
+
+            & ul > li {
+                line-height: 1.5em;
+            }
+
+            & ul > li:hover {
+                background-color: black;
+                color: white;
+            }
+        }
+
+        #search {
+            padding: 10px;
+
+            & input {
+                background-color: transparent;
+                font-size: 32px;
+                border: 0;
+                appearance: none;
+                width: 100%;
+                margin-bottom: 0;
+                padding-bottom: 0;
+                outline: none;
+            }
+
+            & input:focus {
+                appearance: none;
+            }
+        }
+
+        .invisible {
+            visibility: hidden;
+        }
+
+        #path-inspector {
+            width: 100%;
+        }
+
+        #item-inspector {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .code {
+            font-family: 'Space Mono', monospace
+        }
+
+        .node-reference {
+            font-family: 'Space Mono', monospace;
+            cursor: crosshair;
+            text-decoration: underline;
+        }
+
+        ul {
+            counter-reset: item;
+            padding: 0;
+        }
+
+        ol {
+            counter-reset: item;
+
+            padding: 0;
+            margin: 0;
+        }
+
+        .path-desc {
+            height: 0;
+            overflow-y: hidden;
+            transition: height 1s;
+            margin-left: 1em;
+        }
+
+        li.path-item {
+            display: block;
+            margin-left: 0;
+            padding-left: 0;
+            list-style-position: outside;
+            list-style-type: decimal-leading-zero;
+        }
+
+        li.path-item:hover + li > span {
+            background-color: black;
+            color: bisque;
+        }
+
+        li.path-item:before {
+            //display: inline-block;
+            content: counter(item, decimal-leading-zero) " ";
+            counter-increment: item;
+            width: 1em;
+            vertical-align: super;
+            font-size: 10px;
+        }
+
+        li.path-item:hover {
+            background: black;
+            color: bisque;
+
+            .path-desc {
+                visibility: visible;
+                height: auto;
+                transition: height 1s;
+            }
+        }
+
+        span.remove {
+            display: block;
+            right: 0;
+            height: 100%;
+            float: right;
+            text-align: right;
+            visibility: hidden;
+        }
+
+        li:hover > span.remove {
+            background: red;
+            visibility: visible !important;
+        }
+
+        span.node-reference:after {
+        / / content: ',';
+        }
+
+        body {
+            #border {
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                box-sizing: border-box;
+
+            }
+
+            &.focused {
+                .container {
+                    outline-width: 2px;
+                    outline-style: solid;
+                    outline-color: rgba(0, 0, 0, 0.4);
+                }
+
+                #border {
+                / / background-color: palegreen;
+                }
+
+                .if-not-focused {
+                    visibility: hidden;
+                }
+            }
+        }
+
+
+        #border-top {
+            height: 0px;
+            text-align: center;
+        }
+
+        .container {
+            position: absolute;
+            margin: 30px 30px 30px 30px;
+            width: calc(100% - 60px);
+            height: calc(100% - 60px);
+            display: flex;
+            flex-direction: row;
+            background-color: bisque;
+            overflow-y: hidden;
+        }
+
+        #graph {
+            position: relative;
+            flex-grow: 1;
+            flex-shrink: 1;
+
+        }
+
+        #index {
+            column-count: 5;
+        }
+
+        .filter-container {
+            flex-grow: 0;
+            flex-shrink: 0;
+            width: 250px;
+        }
+
+        .inspector-container {
+            flex-grow: 0;
+            flex-shrink: 0;
+            width: 250px;
+        }
+
+        #graph {
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+<div id="border">
+    <div id="border-top"></div>
+    <div class="container">
+        <div id="graph"></div>
+        <div class="inspector-container">
+            <div id="path-inspector"></div>
+            <div id="item-inspector"></div>
+        </div>
+    </div>
+</div>
+<div id="search" class="invisible">
+    <input id="search-query"/>
+    <div id="search-results"></div>
+</div>
+<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+<script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+    // console.log(threeJs)
+    // console.log(threeJs.SpriteText)
+    //import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
+    import ForceGraph3D from "https://cdn.jsdelivr.net/npm/3d-force-graph@1.77.0/+esm"
+    import SpriteText from 'https://cdn.jsdelivr.net/npm/three-spritetext@1.9.6/+esm'
+
+    import {findAllShortestPaths, minimumSpanningTree, minimumSpanningTreeFromSubtree} from "./dijkstra.js"
+
+    window.addEventListener('keydown', (e) => {
+        if (e.keyCode === 32 && e.target === document.body) {
+            e.preventDefault();
+            if (d3.select("#search").classed("invisible")) {
+                d3.select("#search").attr("class", "")
+                d3.select("#search-query").node().focus()
+            }
+        }
+    });
+
+    const searchQuery = d3.select("#search-query")
+    searchQuery.on('keyup', e => {
+        if (e.keyCode == 27) {
+            if (searchQuery.property("value").length == 0) {
+                d3.select("#search").attr("class", "invisible")
+
+            } else {
+                searchQuery.property("value", "")
+                d3.select("#search-results").html("")
+            }
+        } else {
+            const query = searchQuery.property("value")
+            let hits = []
+            if (query.length > 0) {
+                toolData.forEach(i => {
+                    if (i[0].toLowerCase().includes(query)) {
+                        hits.push(i[0])
+                    }
+                })
+            }
+            hits = hits.slice(0, 10)
+            const results = d3.select("#search-results")
+            results.html("")
+            results.append('ul').selectAll("li").data(hits).enter().append("li")
+                .text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (e, i) => {
+                        let centerAt = graph.graphData().nodes.find(j => {
+                            return j.id === i
+                        })
+                        graph.centerAt(centerAt.x, centerAt.y, 500)
+                        inspectNodeItem(nodesById[i])
+                        d3.select("#search").attr("class", "invisible")
+                    }
+                )
+        }
+    })
+
+    function hideSearch() {
+        d3.select("#search").attr("class", "invisible")
+    }
+
+    let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
+    const toolData = Object.entries(data.tools)
+    toolData.sort((a, b) => a[0].localeCompare(b[0]))
+
+    data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/techniques/techniques.json");
+    const techniqueData = Object.entries(data.techniques)
+    techniqueData.sort((a, b) => a[0].localeCompare(b[0]))
+
+    const allTags = (toolData.concat(techniqueData)).flatMap((it) => it[1].tags || [])
+    let tags = [...new Set(allTags)]
+    tags.sort()
+
+    const toolNodes = toolData.map((it, idx) => {
+        return {"id": it[0], "name": it[0], "type": "tool", "ccmData": it}
+    })
+
+    const techniqueNodes = techniqueData.map((it, idx) => {
+        return {"id": it[0], "name": it[1].name, "type": "technique", "ccmData": it}
+    })
+
+    let enableToolTagLinks = true;
+    let enableTechniqueTagLinks = true;
+    let enableDependencyLinks = true;
+    let enableSupportLinks = true;
+    let enableTechniqueLinks = true;
+    const activeTags = new Set(allTags)
+    const tagNodes = [...activeTags].map((it, idx) => {
+        return {"id": it, "name": it, "type": "tag"}
+    })
+
+    let selectedNodes = new Set();
+
+    let pathNodes = []
+    let shortestPaths = []
+    let shortestPathNodeIds = new Set()
+    let nodesById = {}
+
+    let selectedPath = null
+    let skipPathNodes = new Set()
+
+    const focusGraph = {nodes: new Set(), links: new Set()}
+
+    function buildGraph(mst) {
+        const links = [];
+        const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
+        nodesById = {}
+        toolData.forEach(n => {
+            const tooln = toolNodes.find(it => it.name === n[0])
+            nodesById[n[0]] = tooln
+            if (enableToolTagLinks && !mst) {
+                (n[1].tags || []).forEach(t => {
+                    if (activeTags.has(t)) {
+                        const tn = tagNodes.find(it => it.name === t)
+                        nodesById[t] = tn
+                        const link = {
+                            source: tn.id,
+                            target: tooln.id,
+                            type: "tag",
+                            curvature: 0.0,
+                            color: 'black'
+                        }
+                        links.push(link)
+                    }
+                });
+            }
+            if (enableDependencyLinks && !mst) {
+                (n[1].dependsOn || []).forEach(t => {
+                    const dependn = toolNodes.find(it => it.name === t)
+                    if (dependn) {
+                        const link = {
+                            source: dependn.id,
+                            target: tooln.id,
+                            type: "dependency",
+                            curvature: 0.0,
+                            color: 'rgba(0, 0, 0, 0.5)',
+                        }
+                        links.push(link)
+                    }
+                })
+            }
+            if (enableSupportLinks && !mst) {
+                (n[1].supports || []).forEach(t => {
+                    const supportn = toolNodes.find(it => it.name === t)
+                    if (supportn) {
+                        const link = {
+                            source: supportn.id,
+                            target: tooln.id,
+                            type: "support",
+                            curvature: 0.0,
+                            color: 'rgba(0, 0, 0, 0.5)',
+                        }
+                        links.push(link)
+                    }
+                })
+            }
+            if (enableTechniqueLinks && !mst) {
+                Object.entries(n[1].actions || {}).forEach(a => {
+                    (a[1].techniques || []).forEach(t => {
+                        const link = {
+                            source: tooln.id,
+                            target: t,
+                            type: "tool-technique",
+                            color: 'rgba(0, 0, 0, 0.5)',
+                        }
+                        links.push(link)
+                    })
+                })
+            }
+
+            if (mst) {
+                for (let link of mst) {
+                    links.push(link)
+                }
+            }
+        })
+
+        techniqueData.forEach(n => {
+            const techniquen = techniqueNodes.find(it => it.id === n[0])
+            nodesById[n[0]] = techniquen
+            if (enableTechniqueTagLinks) {
+                (n[1].tags || []).forEach(t => {
+                    if (activeTags.has(t)) {
+                        const tagn = tagNodes.find(it => it.name === t)
+
+                        const link = {
+                            source: tagn.id,
+                            target: techniquen.id,
+                            type: "tag",
+                            curvature: 0.0,
+                            color: 'rgba(0, 0, 0, 0.5)',
+                        }
+                        links.push(link)
+                    }
+                });
+            }
+        })
+
+        if (pathNodes.length === 2) {
+
+            let filteredLinks = []
+            links.forEach(link => {
+                if (!skipPathNodes.has(link.source) && !skipPathNodes.has(link.target)) {
+                    filteredLinks.push(link)
+                }
+            })
+
+            shortestPaths = findAllShortestPaths(filteredLinks, pathNodes[0].id, pathNodes[1].id)
+            shortestPathNodeIds = new Set(shortestPaths.paths.flatMap(it => it))
+            const pathCount = shortestPaths.paths.length
+            for (let p = 0; p < shortestPaths.paths.length; ++p) {
+                for (let i = 0; i < shortestPaths.paths[p].length - 1; ++i) {
+                    let a = shortestPaths.paths[p][i]
+                    let b = shortestPaths.paths[p][i + 1]
+                    links.push({
+                        source: a,
+                        target: b,
+                        type: `shortest-path-${p}`,
+                        color: `hsl(${360.0 * ((p / (pathCount)) || 0.0)}, 100%, 50%)`,
+                        curvature: (pathCount === 1 && 0.0) || (p / (pathCount - 1.0) - 0.5) * 0.25
+                    })
+                }
+            }
+
+        } else {
+            skipPathNodes = new Set()
+            shortestPaths = []
+        }
+        selectedPath = "shortest-path-0"
+        inspectPath("shortest-path-0")
+        return {"nodes": nodes, "links": links}
+    }
+
+
+    function setFocus(text) {
+        if (text) {
+            d3.select("body").attr("class", "focused")
+            d3.select("#border-top").html(text)
+            d3.select("#border-top").append("span").text("×")
+        } else {
+            d3.select("body").attr("class", null)
+            d3.select("#border-top").html("")
+        }
+    }
+
+    d3.select("#border-top").on('click', () => {
+        shortestPaths = []
+        shortestPathNodeIds = new Set([])
+        focusGraph.nodes = new Set([])
+        focusGraph.links = new Set([])
+        graph.graphData().nodes.forEach((i) => {
+            delete i.fx;
+            delete i.fy;
+        })
+
+        graph.graphData(buildGraph())
+        setFocus();
+    })
+
+    function findAdjacentGraph(graphData, nodeId) {
+        let nodes = new Set()
+        let links = []
+        graphData.links.forEach(l => {
+            if (l.source.id === nodeId || l.target.id === nodeId) {
+                links.push(l)
+                if (l.source.id !== nodeId) {
+                    nodes.add(l.source)
+                }
+                if (l.target.id !== nodeId) {
+                    nodes.add(l.target)
+                }
+            }
+        })
+        return {nodes: [...nodes], links: links}
+    }
+
+    function inspectNodeItem(item) {
+        let ii = d3.select("#item-inspector")
+        ii.html("")
+
+        let h3 = ii.append("h3").text("Node")
+
+        let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
+        focusGraph.nodes = new Set([])
+        focusGraph.links = new Set(adjacentGraph.links)
+        // graph.autoPauseRedraw(false)
+
+        // focus on node
+        h3.append("span").attr("class", "if-not-focused").text("⌖")
+            .on('click', i => {
+                setFocus(`Focused on ${item.type} <span class="node-reference">${item.id}</span>`)
+                let centerAt = graph.graphData().nodes.find(i => {
+                    return i.id === item.id
+                })
+
+                graph.graphData().nodes.forEach((i) => {
+                    delete i.fx;
+                    delete i.fy;
+                })
+
+
+                const mst = minimumSpanningTree(graph.graphData().links, item.id)
+
+                graph.graphData(buildGraph(mst.mstEdges))
+
+                setTimeout(() => {
+                    let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
+                    focusGraph.links = new Set(adjacentGraph.links)
+
+                }, 1000)
+
+                for (let i = 0; i < adjacentGraph.nodes.length; ++i) {
+                    setTimeout(() => {
+                        //let dx = Math.cos(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        //let dy = Math.sin(i * 2 * 3.1415 / adjacentGraph.nodes.length) * 30.0
+                        let dx = adjacentGraph.nodes[i].x - centerAt.x
+                        let dy = adjacentGraph.nodes[i].y - centerAt.y
+                        let l = Math.sqrt(dx * dx + dy * dy)
+
+                        if (l > 0.0) {
+                            dx /= l
+                            dy /= l
+                        }
+                        dx *= 30.0;
+                        dy *= 30.0;
+
+
+                        adjacentGraph.nodes[i].x = centerAt.x + dx
+                        adjacentGraph.nodes[i].y = centerAt.y + dy
+                        adjacentGraph.nodes[i].fx = centerAt.x + dx
+                        adjacentGraph.nodes[i].fy = centerAt.y + dy
+                    }, i * 50)
+                }
+                centerAt.fx = centerAt.x
+                centerAt.fy = centerAt.y
+
+                graph.d3ReheatSimulation()
+                setTimeout(() => {
+                    let adjacentNodeIds = new Set(adjacentGraph.nodes.map(i => {
+                        return i.id
+                    }))
+
+                    graph.zoomToFit(1000, 200, i => {
+                        return adjacentNodeIds.has(i.id)
+                    })
+                }, adjacentGraph.nodes.length * 50)
+
+            })
+
+
+        ii.append("p").html(`This is <span class="code">${item.id}</span>`)
+        ii.append("p").html(`Node is of type <span class="code">${item.type}</span>`)
+
+        if (item.type !== "tag") {
+            ii.append("h4").text("Tags:")
+            let tags = ii.append("p")
+            tags.selectAll("span")
+                .data(item.ccmData[1].tags || [])
+                .enter()
+                .append("span").text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+                })
+        }
+
+        if (item.type === "tool") {
+            ii.append("h4").text("Depends on:")
+
+            let dependencies = ii.append("p")
+            dependencies.selectAll("span")
+                .data(item.ccmData[1].dependsOn || [])
+                .enter()
+                .append("span").text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+                })
+
+            ii.append("h4").text("Supports:")
+            let support = ii.append("p")
+            support.selectAll("span")
+                .data(item.ccmData[1].supports || [])
+                .enter()
+                .append("span").text(i => i)
+                .attr("class", "node-reference")
+                .on('click', (i, data) => {
+                    let target = nodesById[data]
+                    inspectNodeItem(target)
+                })
+        }
+
+        if (item.type === "tool" || item.type === "technique") {
+            ii.append("h4").text("References:")
+            let references = ii.append("ul")
+            references.selectAll("li")
+                .data(item.ccmData[1].references || [])
+                .enter()
+                .append("li")
+                .append("a")
+                .text(item => item)
+                .attr("href", item => item)
+        }
+    }
+
+    function inspectPath(pathName) {
+        let pi = d3.select("#path-inspector")
+        pi.html("")
+
+        if (!shortestPaths.paths) {
+            return;
+        }
+        const pathIndexMatch = pathName.match(/shortest-path-(\d+)/);
+        if (pathIndexMatch) {
+
+            let h3 = pi.append("h3").text("Shortest path")
+
+            // focus on path
+            h3.append("span").attr("class", "if-not-focused").text("⌖").on('click', (e, i) => {
+
+                const pathIndex = parseInt(pathIndexMatch[1], 10);
+                const path = shortestPaths.paths[pathIndex]
+                let source = shortestPaths.paths[pathIndex][0]
+                let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
+
+                setFocus(`Focused on path <span class="node-reference">${source}</span>—<span class="node-reference">${target}</span>`)
+
+                const subTree = []
+                for (let i = 0; i < path.length - 1; ++i) {
+                    subTree.push({source: path[i], target: path[i + 1], weight: 1})
+                }
+                const mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subTree)
+                graph.graphData(buildGraph(mst.mstEdges))
+                focusGraph.nodes = new Set()
+                focusGraph.links = new Set()
+                shortestPathNodeIds = new Set()
+            })
+
+            if (shortestPaths.paths.length === 0) {
+                pi.append("p").html(`There is no path that connects <span class="node-reference">${pathNodes[0].id}</span> to <span class="node-reference">${pathNodes[1].id}</span>`)
+            } else {
+                const pathIndex = parseInt(pathIndexMatch[1], 10);
+                let source = shortestPaths.paths[pathIndex][0]
+                let target = shortestPaths.paths[pathIndex][shortestPaths.paths[pathIndex].length - 1]
+
+                pi.append("p").html(`The shortest path between <span class="code">${source}</span> and <span class="code">${target}</span> is as follows:`)
+
+                const path = shortestPaths.paths[pathIndex];
+                const chain = [...Array(path.length).keys()].map((it) => {
+                    return {
+                        'prev': it > 0 ? path[it - 1] : null,
+                        'cur': path[it],
+                        'next': it < path.length - 1 ? path[it + 1] : null
+                    }
+                })
+
+                let ul = pi.append("ol")
+                const li = ul.selectAll("li")
+                    .data(chain)
+                    .enter()
+                    .append("li").attr("class", "path-item")
+
+                li.append("span").text(data => data.cur).attr("class", "node-reference")
+                    .on('click', (i, data) => {
+                        let centerAt = graph.graphData().nodes.find(n => n.id === data.cur)
+                        graph.centerAt(centerAt.x, centerAt.y, 500)
+                        let target = nodesById[data.cur]
+                        inspectNodeItem(target)
+                    })
+                li.append("span").attr("class", "remove").text("×").on('click', (e, data) => {
+                    skipPathNodes.add(data.cur)
+                    graph.graphData(buildGraph())
+                    graph.zoomToFit(1000, 100, node => {
+                        return shortestPathNodeIds.has(node.id)
+                    })
+                    e.stopPropagation();
+                })
+                li.append("div").attr("class", "path-desc").html(data => {
+                    let text = ""
+                    const prev = nodesById[data.prev]
+                    const node = nodesById[data.cur]
+                    const next = nodesById[data.next]
+                    if (node) {
+                        switch (node.type || "") {
+                            case 'tag': {
+                                text = `A tag that groups tools and techniques related to ${data.cur}`
+                                if (next) {
+                                    text += `<br><br>This group includes`
+                                }
+                                break;
+                            }
+
+                            case 'tool': {
+                                text = `A tool.`
+                                if (next) {
+                                    text += '<br><br>'
+                                    console.log("current:")
+                                    console.log(node)
+                                    if (node.ccmData[1].dependsOn && node.ccmData[1].dependsOn.includes(next.id)) text += `${data.cur} depends on`
+                                    else if (node.ccmData[1].supports && node.ccmData && node.ccmData[1] && node.ccmData[1].supports.includes(next.id)) text += `${data.cur} supports`
+                                    else if (next.type === 'tool' && next.ccmData[1].supports && next.ccmData[1].supports.includes(node.id)) text += `${data.cur} is supported by`
+                                    else if (next.type === 'tool' && next.ccmData[1].dependsOn && next.ccmData[1].dependsOn.includes(node.id)) text += `${data.cur} is depended on by`
+                                    else if (next.type === 'tag') text += `${data.cur} is tagged as`
+                                }
+                                break;
+                            }
+
+                            case 'technique': {
+                                text = `A technique.`
+                            }
+                        }
+                    }
+
+                    return text;
+                })
+            }
+        }
+        pi.append("button").attr("class", "if-not-focused").text("clear").on('click', i => {
+            shortestPaths = []
+            pathNodes = []
+            skipPathNodes = new Set()
+            graph.graphData(buildGraph())
+        })
+    }
+
+    let cw = document.getElementById('graph').clientWidth
+    let ch = document.getElementById('graph').clientHeight
+
+    function buildGraphView() {
+        d3.select("#graph").html("")
+        const graph = new ForceGraph3D()
+        (document.getElementById('graph'))
+            .width(cw)
+            .height(ch)
+            .linkCurvature('curvature')
+            .nodeAutoColorBy('type')
+            //.nodeColor( node => selectedNodes.has(node) || 'auto')
+            .graphData(buildGraph())
+            .backgroundColor('bisque')
+            .linkColor('color')
+            // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
+            .linkWidth(link => (((link.type === selectedPath && 5.0) || (focusGraph.links.has(link)) && 2.0) || 1.0))
+            //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
+            .onBackgroundClick(() => {
+                hideSearch()
+            })
+            .onLinkClick(link => {
+                hideSearch()
+                if (link.type.includes("shortest-path")) {
+                    selectedPath = link.type
+                    graph.autoPauseRedraw(false)
+
+                    inspectPath(link.type)
+                }
+            })
+            .onNodeClick((node, event) => {
+                hideSearch()
+                if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
+                    selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
+                } else { // single-selection
+                    inspectNodeItem(node)
+                    const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
+                    selectedNodes.clear();
+                    !untoggle && selectedNodes.add(node);
+                }
+
+                if (selectedNodes.size === 2) {
+                    pathNodes = [...selectedNodes]
+                    graph.graphData(buildGraph())
+                    graph.zoomToFit(1000, 100, node => {
+                        return shortestPathNodeIds.has(node.id)
+                    })
+                }
+                //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
+            })
+            .nodeThreeObject(node => {
+                if ((focusGraph.nodes.size > 0 && !focusGraph.nodes.has(node)) || shortestPaths.paths && shortestPathNodeIds.size > 0 && !shortestPathNodeIds.has(node.id)) {
+                    return null
+                } else {
+                    const sprite = new SpriteText(node.id);
+                    sprite.fontFace = 'Space Mono'
+                    sprite.material.depthWrite = false; // make sprite background transparent
+                    sprite.color = node.color
+                    sprite.backgroundColor = 'black'
+                    sprite.textHeight = 16;
+                    return sprite;
+                }
+            });
+        return graph
+    }
+
+    let graph = buildGraphView()
+
+</script>
+</body>
