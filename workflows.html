@@ -27,6 +27,10 @@
             width: 250px;
         }
 
+        .highlighted {
+            background-color: palegreen;
+        }
+
         .code-container {
             flex-grow: 0;
             flex-shrink: 1;
@@ -65,18 +69,35 @@
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
 
-    async function showCode(workflowName) {
-        const code = await d3.text("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
-        d3.select("#code").html("")
-        d3.select("#code").append("pre").text(code)
-    }
 
 
     const workflowListData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/workflows.json")
 
     const workflowGraphData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
+    const workflowCodeData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/code.json")
 
-    showCode("ExampleWorkflow")
+    async function showCode(workflowName, highlightIndex) {
+        //const code = await d3.text("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
+        const code = workflowCodeData[workflowName]
+        const lines = code.split("\n")
+        const lineNumbers = lines.map((it, idx) => {
+            return `<span class="line-number">${idx + 1}</span>`
+        })
+        const lineNumbersHtml = lineNumbers.join("")
+        const linesHtml = lines.map((it, index) => {
+            if (index === highlightIndex) {
+                return `<pre class="line highlighted">${index+1}: ${it}</pre>`
+            } else {
+                return `<pre class="line">${index + 1}: ${it}</pre>`
+            }
+        })
+        const linesHtmlHtml = linesHtml.join("")
+
+        d3.select("#code").html(linesHtmlHtml)
+        //d3.select("#code").append("pre").text(code)
+    }
+
+    showCode("ExampleWorkflow", 5)
 
     function buildGraph(workflowName) {
         //return { nodes: [], links: [] }
@@ -128,10 +149,12 @@
             if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
                 selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
             } else { // single-selection
-                inspectNodeItem(node)
-                const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
-                selectedNodes.clear();
-                !untoggle && selectedNodes.add(node);
+                //inspectNodeItem(node)
+                console.log(node)
+                showCode("ExampleWorkflow", node.lineNumber - 1)
+                // const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
+                // selectedNodes.clear();
+                // !untoggle && selectedNodes.add(node);
             }
 
             // if (selectedNodes.size === 2) {
