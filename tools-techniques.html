@@ -548,7 +548,13 @@
                 })
 
 
-                const mst = minimumSpanningTree(graph.graphData().links, item.id)
+                const adjacent = findAdjacentGraph(graph.graphData(), item.id)
+
+                const subTree = []
+                for (let link of adjacent.links) {
+                    subTree.push({source: link.source.id, target: link.target.id, weight: 1})
+                }
+                const mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subTree)
 
                 graph.graphData(buildGraph(mst.mstEdges))
 
