@@ -2,11 +2,16 @@
 <head>
     <meta charset="UTF-8">
     <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
-    <title>Creative Coding Workflows</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+          rel="stylesheet">
+
+    <title>Creative Coding Map — Workflows</title>
     <style>
         body {
             margin: 20px;
             background: cadetblue;
+            font-family: "Inter", serif;
+            font-weight: 300
         }
 
         .container {
@@ -39,6 +44,7 @@
 
         #workflows > ul > li {
             text-decoration: underline;
+            margin-bottom: 20px;
         }
 
         #workflows > ul > li:hover {
@@ -69,41 +75,31 @@
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
 
-
-
     const workflowListData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/workflows.json")
-
     const workflowGraphData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
     const workflowCodeData = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/code.json")
 
+    let activeWorkflow = "ExampleWorkflow"
+
     async function showCode(workflowName, highlightIndex) {
-        //const code = await d3.text("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/workflows/graphs.json")
         const code = workflowCodeData[workflowName]
         const lines = code.split("\n")
-        const lineNumbers = lines.map((it, idx) => {
-            return `<span class="line-number">${idx + 1}</span>`
-        })
-        const lineNumbersHtml = lineNumbers.join("")
         const linesHtml = lines.map((it, index) => {
             if (index === highlightIndex) {
-                return `<pre class="line highlighted">${index+1}: ${it}</pre>`
+                return `<pre class="line highlighted">${index + 1}: ${it}</pre>`
             } else {
                 return `<pre class="line">${index + 1}: ${it}</pre>`
             }
         })
         const linesHtmlHtml = linesHtml.join("")
-
         d3.select("#code").html(linesHtmlHtml)
-        //d3.select("#code").append("pre").text(code)
     }
 
-    showCode("ExampleWorkflow", 5)
+    showCode(activeWorkflow)
 
     function buildGraph(workflowName) {
-        //return { nodes: [], links: [] }
         return workflowGraphData[workflowName]
     }
-
 
     d3.select("#workflows").append("ul")
         .selectAll("li")
@@ -113,13 +109,13 @@
             return `${i.name} — ${i.description}`
         })
         .on('click', (event, data) => {
-            graph.graphData(buildGraph(data.name))
+            activeWorkflow = data.name
+            graph.graphData(buildGraph(activeWorkflow))
+            showCode(activeWorkflow)
         })
-
 
     let cw = document.getElementById('graph').clientWidth
     let ch = document.getElementById('graph').clientHeight
-
     const graph = new ForceGraph()
 
     (document.getElementById('graph'))
@@ -130,18 +126,12 @@
             i.label
         })
         .nodeAutoColorBy('type')
-
-        //.nodeColor( node => selectedNodes.has(node) || 'auto')
         .graphData(buildGraph("ExampleWorkflow"))
         .linkColor('color')
-        // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-        //.linkWidth(link => (link.type === selectedPath && 5.0 || 1.0))
-        //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
         .onLinkClick(link => {
             if (link.type.includes("shortest-path")) {
                 selectedPath = link.type
                 graph.autoPauseRedraw(false)
-
                 inspectPath(link.type)
             }
         })
@@ -149,50 +139,26 @@
             if ((event.ctrlKey || event.shiftKey || event.altKey) && selectedNodes.size < 2) { // multi-selection
                 selectedNodes.has(node) ? selectedNodes.delete(node) : selectedNodes.add(node);
             } else { // single-selection
-                //inspectNodeItem(node)
-                console.log(node)
-                showCode("ExampleWorkflow", node.lineNumber - 1)
-                // const untoggle = selectedNodes.has(node) && selectedNodes.size === 1;
-                // selectedNodes.clear();
-                // !untoggle && selectedNodes.add(node);
+                showCode(activeWorkflow, node.lineNumber - 1)
             }
-
-            // if (selectedNodes.size === 2) {
-            //     pathNodes = [...selectedNodes]
-            //     graph.graphData(buildGraph())
-            //     graph.zoomToFit(1000, 100, node => {
-            //         return shortestPathNodeIds.has(node.id)
-            //     })
-            // }
-            //graph.nodeColor(graph.nodeColor()); // update color of selected nodes
         })
         .linkDirectionalArrowLength(5)
         .nodeCanvasObject((node, ctx, globalScale) => {
             let transform = ctx.getTransform()
             let scale = (transform.a + transform.d) / 2.0
+            const label = node.label;
+            const fontSize = 12 / globalScale;
+            ctx.font = `${fontSize}px Sans-Serif`;
+            const textWidth = ctx.measureText(label).width;
+            const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
 
-            if (false) {
-                // ctx.fillStyle = 'black';
-                // ctx.beginPath();
-                // ctx.arc(node.x, node.y, 1, 0, 2 * Math.PI, false);
-                // ctx.fill();
-                // node.__bckgDimensions = [4, 4]
-            } else {
-                const label = node.label;
-                const fontSize = 12 / globalScale;
-                ctx.font = `${fontSize}px Sans-Serif`;
-                const textWidth = ctx.measureText(label).width;
-                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
-
-                ctx.fillStyle = 'cadetblue';
-                ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
-
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = node.color;
-                ctx.fillText(label, node.x, node.y);
-                node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
-            }
+            ctx.fillStyle = 'cadetblue';
+            ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = node.color;
+            ctx.fillText(label, node.x, node.y);
+            node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
         })
         .nodePointerAreaPaint((node, color, ctx) => {
                 ctx.fillStyle = color;
@@ -200,7 +166,5 @@
                 bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
             }
         )
-
-    //    console.log(graph.d3Force('link'))
 </script>
 </body>
