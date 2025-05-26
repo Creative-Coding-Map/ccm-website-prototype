@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+          rel="stylesheet">
+    <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
+    <title>Creative Coding Tools</title>
+    <style>
+        body {
+            margin: 0 0 0 0;
+            background: bisque;
+            height: 100vh;
+            font-family: "Inter", serif;
+            font-weight: 200
+        }
+
+        #graph {
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+<div id="border">
+    <div id="border-top"></div>
+    <div class="container">
+        <div id="graph"></div>
+        <div class="inspector-container">
+            <div id="path-inspector"></div>
+            <div id="item-inspector"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+    import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
+    import {blendGraphs} from "./blend.js"
+    import {colorGraph} from "./coloring.js";
+    import {findAdjacentSubtree, minimumSpanningTreeFromSubtree} from "./dijkstra.js"
+    import {fetchCcmData} from "./ccm-data.js";
+    import {buildNodesFromCcmData, buildGraph} from "./build-graph.js";
+    import {buildDomainGraph} from "./domain-sets.js";
+    const domainSets = [
+        {
+            'name': 'graphics',
+            'nodes': [
+                {
+                    id: '3d graphics',
+                    degree: 1,
+                },
+                {
+                    id: 'computer graphics',
+                    degree: 1,
+                },
+                {
+                    id: 'vector graphics',
+                    degree: 1,
+                },
+                {
+                    id: 'geometry',
+                    degree: 1,
+                },
+                {
+                    id: 'shaders',
+                    degree: 1,
+                },
+                {
+                    id: 'graphics api',
+                    degree: 1,
+                },
+                {
+                    id: 'raster graphics',
+                    degree: 1,
+                },
+                {
+                    id: 'video',
+                    degree: 1,
+                }
+            ]
+        },
+        {
+            'name': 'sound',
+            'nodes': [
+                {
+                    id: 'audio',
+                    degree: 1,
+                },
+                {
+                    id: 'sound',
+                    degree: 1,
+                }
+            ]
+        },
+        {
+            'name': 'text',
+            'nodes': [
+                {
+                    id: 'text',
+                    degree: 1,
+                },
+                {
+                    id: 'typography',
+                    degree: 1,
+                }
+            ]
+        },
+        {
+            'name': 'games',
+            'nodes': [
+                {
+                    id: 'fantasy console',
+                    degree: 1,
+                },
+                {
+                    id: 'game development',
+                    degree: 1,
+                }
+            ]
+        },
+        {
+            'name': 'data',
+            'nodes': [
+                {
+                    id: 'structured data',
+                    degree: 1,
+                },
+                {
+                    id: 'data visualization',
+                    degree: 1,
+                },
+                {
+                    id: 'data science',
+                    degree: 1,
+                },
+                {
+                    id: 'file format',
+                    degree: 1,
+                }
+            ]
+        },
+        {
+            'name': 'physical',
+            'nodes': [
+                {
+                    id: 'hardware',
+                    degree: 1,
+                },
+                {
+                    id: 'microcontroller',
+                    degree: 1,
+                },
+                {
+                    id: 'media technology',
+                    degree: 1,
+                },
+                {
+                    id: 'print',
+                    degree: 1,
+                }
+            ]
+        },
+        {
+            'name': 'software technology',
+            'nodes': [
+                {
+                    id: 'language',
+                    degree: 1,
+                }
+
+            ]
+        }
+
+
+    ]
+
+    const colorSets = [
+        {
+            'name': '3d graphics',
+            'tags': ['3d graphics'],
+            'color': '#ff0000'
+        },
+        {
+            'name': 'file formats',
+            'tags': ['file format'],
+            'color': '#00ff00'
+        },
+        {
+            'name': 'OPENRNDR',
+            'nodes': [
+                {
+                    id: 'OPENRNDR',
+                    degree: 1,
+                }
+            ],
+            'color': '#ffc0cb'
+        },
+        {
+            'name': 'Processing',
+            'nodes': [
+                {
+                    id: 'Processing',
+                    degree: 1,
+                }
+            ],
+            'color': '#0000ff'
+        }
+    ]
+
+    const ccmData = await fetchCcmData()
+    const nodes = buildNodesFromCcmData(ccmData)
+    const ogGraph = buildGraph(ccmData, nodes)
+    const domainGraph = buildDomainGraph(ogGraph, nodes, domainSets)
+    nodes.domainNodes = domainGraph.nodes
+    nodes.allNodes = domainGraph.nodes.concat(ogGraph.nodes)
+
+    colorGraph(ogGraph, colorSets)
+
+    function localBuildGraph(ccmData, nodes, mstEdges) {
+        let graph = buildGraph(ccmData, nodes, mstEdges)
+        graph.links = graph.links.concat(domainGraph.links)
+        return graph
+    }
+
+    function buildGraphView() {
+        let cw = document.getElementById('graph').clientWidth
+        let ch = document.getElementById('graph').clientHeight
+
+        d3.select("#graph").html("")
+        const graph = new ForceGraph()
+        (document.getElementById('graph'))
+            .width(cw)
+            .height(ch)
+            .nodeAutoColorBy('type')
+            .graphData(localBuildGraph(ccmData, nodes))
+            .linkVisibility(link => {
+                return link.strengthDelta >= 0.0
+            })
+            .onNodeClick((node, event) => {
+                for (let node of graph.graphData().nodes) {
+                    delete node.fx
+                    delete node.fy
+                }
+                node.fx = node.x
+                node.fy = node.y
+
+                let subtree = findAdjacentSubtree(graph.graphData().links, node.id)
+
+                function weight(link, source, target) {
+                    const t = `${link.source.type}-${link.target.type}`
+                    switch(t) {
+                        case 'root-domain':
+                            return 1;
+                        case 'domain-domain':
+                        case 'tag-tag':
+                            return 0;
+                        case 'domain-tool':
+                        case 'tool-domain':
+                        case 'domain-technique':
+                        case 'technique-domain':
+                            return 8;
+                        case 'domain-tag':
+                        case 'tag-domain':
+                            return 4;
+                        case 'tag-tool':
+                        case 'tool-tag':
+                        case 'tag-technique':
+                        case 'technique-tag':
+                            return 5;
+                        case 'tool-tool':
+                        case 'technique-tool':
+                        case 'tool-technique':
+                            return 10;
+                        default:
+                            throw new Error(`unknown link type ${t}`)
+                    }
+
+                }
+
+                let mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subtree, weight)
+
+                let nextGraph = localBuildGraph(ccmData, nodes, mst.mstEdges)
+                blendGraphs(graph.graphData(), nextGraph)
+
+                let s = 0.0
+                graph.d3ReheatSimulation();
+
+                let interval = setInterval(() => {
+                    graph.d3AlphaDecay(0.0001)
+                    const link = d3.forceLink(graph.graphData().links).id((d) => d.id).distance(100).strength(link => {
+                        if (link.strengthDelta > 0) {
+                            return s * link.strength;
+                        } else if (link.strengthDelta < 0) {
+                            return 0.0;
+                        } else {
+                            return s * (link.strength || 0.0);
+                        }
+                    })
+                    s += 0.1
+                    if (s > 1.0) {
+                        s = 1.0
+                        clearInterval(interval)
+                    }
+                    graph.d3Force('link', link)
+                }, 100)
+            })
+            .nodeCanvasObject((node, ctx, globalScale) => {
+                let transform = ctx.getTransform()
+                let scale = (transform.a + transform.d) / 2.0
+
+                let minScale = 2.0
+                switch (node.type) {
+                    case 'domain':
+                        minScale = 0.0
+                        break
+                    case 'tool':
+                    case 'technique':
+                        minScale = 4.0
+                        break
+                    case 'tag':
+                        minScale = 1.0
+                }
+
+                {
+                    ctx.fillStyle = node.color
+
+                    switch (node.type) {
+                        case 'tag':
+                            ctx.beginPath();
+                            // ctx.arc(node.x, node.y, 8 / globalScale, 0, 2 * Math.PI, false);
+                            ctx.rect(node.x - 4 / globalScale, node.y - 4 / globalScale, 8 / globalScale, 8 / globalScale);
+                            ctx.fill();
+                            break
+                        case 'technique':
+                            ctx.beginPath();
+                            ctx.arc(node.x, node.y, 4 / globalScale, 0, 2 * Math.PI, false);
+                            ctx.lineWidth = 2 / globalScale;
+                            ctx.strokeStyle = node.color;
+                            ctx.stroke()
+                            break
+                        case 'tool':
+                            ctx.beginPath();
+                            ctx.arc(node.x, node.y, 4 / globalScale, 0, 2 * Math.PI, false);
+                            ctx.fill();
+                            break
+
+                    }
+                    node.__bckgDimensions = [4, 4]
+                }
+                if (scale >= minScale) {
+                    const label = node.name;
+                    const fontSize = 16 / globalScale;
+                    ctx.font = `${fontSize}px Space Mono`;
+                    const textWidth = ctx.measureText(label).width;
+                    const bckgDimensions = [textWidth, fontSize + 16 / globalScale].map(n => n + fontSize * 0.2); // some padding
+
+                    ctx.fillStyle = 'bisque';
+                    ctx.fillRect(node.x - bckgDimensions[0] / 2, 16 / globalScale + node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = node.color;
+                    ctx.fillText(label, node.x, 16 / globalScale + node.y);
+                    node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+                }
+            })
+            .nodePointerAreaPaint((node, color, ctx) => {
+                ctx.fillStyle = color;
+                const bckgDimensions = node.__bckgDimensions;
+                bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+            });
+        return graph
+    }
+
+    let graph = buildGraphView()
+</script>
+</body>

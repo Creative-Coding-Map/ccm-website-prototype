@@ -165,7 +165,7 @@
         }
 
         span.node-reference:after {
-        / / content: ',';
+        // content: ',';
         }
 
         body {
@@ -259,7 +259,7 @@
 <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
     import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
-    import {findAllShortestPaths, minimumSpanningTree, minimumSpanningTreeFromSubtree} from "./dijkstra.js"
+    import {findShortestPath, findAllShortestPaths, minimumSpanningTree, minimumSpanningTreeFromSubtree} from "./dijkstra.js"
 
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 32 && e.target === document.body) {
@@ -271,6 +271,8 @@
         }
     });
 
+    var focusedNode = null
+    var highlightPath = new Set()
     const searchQuery = d3.select("#search-query")
     searchQuery.on('keyup', e => {
         if (e.keyCode == 27) {
@@ -418,21 +420,20 @@
                 })
             }
 
-            if (mst) {
-                for (let link of mst) {
-                    links.push(link)
-                }
-            }
-        })
 
+        })
+        if (mst) {
+            for (let link of mst) {
+                links.push(link)
+            }
+        }
         techniqueData.forEach(n => {
             const techniquen = techniqueNodes.find(it => it.id === n[0])
             nodesById[n[0]] = techniquen
-            if (enableTechniqueTagLinks) {
+            if (enableTechniqueTagLinks && !mst) {
                 (n[1].tags || []).forEach(t => {
                     if (activeTags.has(t)) {
                         const tagn = tagNodes.find(it => it.name === t)
-
                         const link = {
                             source: tagn.id,
                             target: techniquen.id,
@@ -446,14 +447,12 @@
         })
 
         if (pathNodes.length === 2) {
-
             let filteredLinks = []
             links.forEach(link => {
                 if (!skipPathNodes.has(link.source) && !skipPathNodes.has(link.target)) {
                     filteredLinks.push(link)
                 }
             })
-
             shortestPaths = findAllShortestPaths(filteredLinks, pathNodes[0].id, pathNodes[1].id)
             shortestPathNodeIds = new Set(shortestPaths.paths.flatMap(it => it))
             const pathCount = shortestPaths.paths.length
@@ -487,6 +486,8 @@
             d3.select("#border-top").html(text)
             d3.select("#border-top").append("span").text("×")
         } else {
+            focusedNode = null
+            highlightPath.clear()
             d3.select("body").attr("class", null)
             d3.select("#border-top").html("")
         }
@@ -536,12 +537,12 @@
 
         // focus on node
         h3.append("span").attr("class", "if-not-focused").text("⌖")
-            .on('click', i => {
+            .on('click', (i, data) => {
+                focusedNode = item.id
                 setFocus(`Focused on ${item.type} <span class="node-reference">${item.id}</span>`)
                 let centerAt = graph.graphData().nodes.find(i => {
                     return i.id === item.id
                 })
-
                 graph.graphData().nodes.forEach((i) => {
                     delete i.fx;
                     delete i.fy;
@@ -557,7 +558,6 @@
                 const mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subTree)
 
                 graph.graphData(buildGraph(mst.mstEdges))
-
                 setTimeout(() => {
                     let adjacentGraph = findAdjacentGraph(graph.graphData(), item.id)
                     focusGraph.links = new Set(adjacentGraph.links)
@@ -584,7 +584,9 @@
                         adjacentGraph.nodes[i].y = centerAt.y + dy
                         adjacentGraph.nodes[i].fx = centerAt.x + dx
                         adjacentGraph.nodes[i].fy = centerAt.y + dy
+
                     }, i * 50)
+
                 }
                 centerAt.fx = centerAt.x
                 centerAt.fy = centerAt.y
@@ -793,9 +795,21 @@
             .nodeAutoColorBy('type')
             //.nodeColor( node => selectedNodes.has(node) || 'auto')
             .graphData(buildGraph())
-            .linkColor('color')
-            // .linkLineDash(link => link.type === "dependency" && [0.5, 0.5])
-            .linkWidth(link => (((link.type === selectedPath && 5.0) || (focusGraph.links.has(link)) && 2.0) || 0.5))
+            .linkWidth(link => {
+                const test = link.source.id+'-'+link.target.id
+                if (highlightPath.has(test)) {
+                    return 5.0
+                } else {
+                 return (((link.type === selectedPath && 5.0) || (focusGraph.links.has(link)) && 2.0) || 0.5)
+                }
+            })
+            .linkColor( link => {
+                const test = link.source.id+'-'+link.target.id
+                if (highlightPath.has(test)) {
+                    return "red";
+                }
+                return link.color;
+            })
             //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
             .onBackgroundClick(() => {
                 hideSearch()
@@ -808,6 +822,20 @@
 
                     inspectPath(link.type)
                 }
+            })
+            .onNodeHover((node, event) => {
+                //if (focusedNode) {
+                if (node && focusedNode) {
+                    graph.autoPauseRedraw(false)
+                    const shortestPath = findShortestPath(graph.graphData().links, focusedNode, node.id)
+                    highlightPath.clear()
+                    for (let i = 0; i < shortestPath.path.length-1; ++i) {
+                        highlightPath.add(shortestPath.path[i]+'-'+shortestPath.path[i+1])
+                        highlightPath.add(shortestPath.path[i+1]+'-'+shortestPath.path[i])
+                    }
+                }
+                //}
+
             })
             .onNodeClick((node, event) => {
                 hideSearch()

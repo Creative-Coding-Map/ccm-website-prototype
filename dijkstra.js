@@ -1,3 +1,25 @@
+/**
+ * Find adjacent nodes for a given node
+ * @param {Array<{source: string, target: string}>} links - Array of link objects representing edges
+ * @param {string} node - The node whose adjacent nodes are to be found
+ * @returns {Array<{source: string, target: string}>} - Subtree
+ */
+function findAdjacentSubtree(links, node) {
+    const adjacentNodes = new Set();
+    let subLinks = []
+    for (const link of links) {
+        if ((link.source.id||link.source) === node) {
+            adjacentNodes.add(link.target);
+            subLinks.push({source: node, target:link.target})
+        } else if ((link.target.id||link.targe0) === node) {
+            adjacentNodes.add(link.source);
+            subLinks.push({source: node, target:link.source})
+        }
+    }
+    console.log("adjacent nodes: ", adjacentNodes)
+    return subLinks
+}
+
 function findShortestPath(edges, start, end) {
     // Build adjacency list from edges (bidirectional)
     const graph = buildUndirectedGraph(edges);
@@ -264,11 +286,12 @@ function minimumSpanningTree(edges, startNode) {
  * Find the minimum spanning tree using Prim's algorithm starting from a given subtree
  * @param {Array<{source: string, target: string, weight: number}>} edges - Array of edge objects
  * @param {Array<{source: string, target: string, weight: number}>} initialSubtree - Edges of the initial subtree
+ * @param {function} weightFunction
  * @returns {Object} - Object containing the total weight and edges of the MST
  */
-function minimumSpanningTreeFromSubtree(edges, initialSubtree) {
+function minimumSpanningTreeFromSubtree(edges, initialSubtree, weightFunction = null) {
     // Build adjacency list from all edges (bidirectional)
-    const graph = buildUndirectedGraph(edges);
+    const graph = buildUndirectedGraph(edges, weightFunction);
 
     // Set of nodes included in MST (start with all nodes from the initial subtree)
     const included = new Set();
@@ -277,7 +300,7 @@ function minimumSpanningTreeFromSubtree(edges, initialSubtree) {
     const mstEdges = [...initialSubtree];
 
     // Total weight of the MST (start with the weight of the initial subtree)
-    let totalWeight = initialSubtree.reduce((sum, edge) => sum + (edge.weight || 1), 0);
+    let totalWeight = initialSubtree.reduce((sum, edge) => sum + 1, 0);
 
     // Validate the initial subtree and collect its nodes
     if (!isValidSubtree(initialSubtree)) {
@@ -366,6 +389,7 @@ function isValidSubtree(subtreeEdges) {
 
     // For a tree with n nodes, it must have exactly n-1 edges
     if (subtreeEdges.length !== nodes.size - 1) {
+        console.log(`tree has ${subtreeEdges.length} edges, but should have ${nodes.size - 1}`)
         return false;
     }
 
@@ -396,11 +420,10 @@ function isValidSubtree(subtreeEdges) {
 /**
  * Build an adjacency list graph from an array of edges, treating all edges as undirected
  * @param {Array<{source: string, target: string, weight: number}>} edges
+ * @param {function(edge:{}, source: string, target: string)} weightFunction - A function that computes the weight for each edge, or undefined for default behavior
  * @returns {Object} Adjacency list for an undirected graph
  */
-function buildUndirectedGraph(edges) {
-
-
+function buildUndirectedGraph(edges, weightFunction) {
     const graph = {};
 
     // Initialize graph with empty adjacency lists
@@ -419,20 +442,37 @@ function buildUndirectedGraph(edges) {
 
         const type = edge.type
         let defaultWeight = 1
-        switch(type) {
-            case 'dependency': defaultWeight = 3; break;
-            case 'support': defaultWeight = 1; break;
-            case 'tag': defaultWeight = 10; break;
-            case 'tool-technique': defaultWeight = 1; break;
-        }
-
-        // Assuming the weight property exists, otherwise default to 1
-        const weight = edge.weight !== undefined ? edge.weight : defaultWeight;
-
-
-
         let source = edge.source.id || edge.source
         let target = edge.target.id || edge.target
+
+        let weight = 0.0
+        if (!weightFunction) {
+
+            switch (type) {
+                case 'dependency':
+                    defaultWeight = 3;
+                    break;
+                case 'support':
+                    defaultWeight = 3;
+                    break;
+                case 'tag':
+                    defaultWeight = 2;
+                    break;
+                case 'tool-technique':
+                    defaultWeight = 10;
+                    break;
+                case 'domain':
+                    defaultWeight = 1;
+                    break;
+            }
+
+            // Assuming the weight property exists, otherwise default to 1
+            weight = edge.weight !== undefined ? edge.weight : defaultWeight;
+        } else {
+            weight = weightFunction(edge, source, target)
+        }
+
+
 
         // Add edge in both directions
         graph[source][target] = weight;
@@ -441,21 +481,71 @@ function buildUndirectedGraph(edges) {
 
     return graph;
 }
-//
-// // Example usage for undirected graph
-// const undirectedEdges = [
-//     {source: 'A', target: 'B', weight: 4},
-//     {source: 'A', target: 'C', weight: 2},
-//     {source: 'B', target: 'C', weight: 1},
-//     {source: 'B', target: 'D', weight: 5},
-//     {source: 'C', target: 'D', weight: 8},
-//     {source: 'C', target: 'E', weight: 10},
-//     {source: 'D', target: 'E', weight: 2}
-// ];
-//
-// const result = findShortestPath(undirectedEdges, 'A', 'E');
-// console.log(`Shortest distance: ${result.distance}`);
-// console.log(`Shortest path: ${result.path.join(' -> ')}`);
-// }
 
-export {  findShortestPath, findAllShortestPaths, minimumSpanningTree, minimumSpanningTreeFromSubtree }
+/**
+ * Finds the degree of separation between one node and all other nodes in the graph
+ * @param {Array} links - Array of objects with 'source' and 'target' properties
+ * @param {string} startNode - The starting node
+ * @returns {Object} Object mapping each node to its degree of separation from startNode, or -1 if unreachable
+ */
+function findAllDegreesOfSeparation(links, startNode) {
+    // Handle edge cases
+    if (!links || links.length === 0) return {};
+
+    // Build adjacency list from links
+    const graph = {};
+    const allNodes = new Set();
+
+    links.forEach(link => {
+        const { source, target } = link;
+
+        // Track all nodes
+        allNodes.add(source);
+        allNodes.add(target);
+
+        // Add bidirectional connections (undirected graph)
+        if (!graph[source]) graph[source] = [];
+        if (!graph[target]) graph[target] = [];
+
+        graph[source].push(target);
+        graph[target].push(source);
+    });
+
+    // Check if start node exists in the graph
+    if (!graph[startNode]) {
+        // Return all nodes with -1 (unreachable) if start node doesn't exist
+        const result = {};
+        allNodes.forEach(node => {
+            result[node] = node === startNode ? 0 : -1;
+        });
+        return result;
+    }
+
+    // Initialize result with all nodes set to -1 (unreachable)
+    const distances = {};
+    allNodes.forEach(node => {
+        distances[node] = -1;
+    });
+
+    // BFS to find shortest paths to all reachable nodes
+    const queue = [startNode];
+    const visited = new Set([startNode]);
+    distances[startNode] = 0;
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+
+        // Check all neighbors
+        for (const neighbor of graph[current]) {
+            if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                distances[neighbor] = distances[current] + 1;
+                queue.push(neighbor);
+            }
+        }
+    }
+
+    return distances;
+}
+
+export { findAdjacentSubtree, findShortestPath, findAllShortestPaths, minimumSpanningTree, minimumSpanningTreeFromSubtree, findAllDegreesOfSeparation };

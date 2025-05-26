@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+          rel="stylesheet">
+    <link href='https://fonts.googleapis.com/css?family=Space Mono' rel='stylesheet'>
+    <title>Creative Coding Tools</title>
+    <style>
+        body {
+            margin: 0 0 0 0;
+            background: bisque;
+            height: 100vh;
+            font-family: "Inter", serif;
+            font-weight: 200
+        }
+        #graph {
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+<div id="border">
+    <div id="border-top"></div>
+    <div class="container">
+        <div id="graph"></div>
+        <div class="inspector-container">
+            <div id="path-inspector"></div>
+            <div id="item-inspector"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+    import ForceGraph from "https://cdn.jsdelivr.net/npm/force-graph@1.49.5/+esm"
+    import { blendGraphs } from "./blend.js"
+
+    import { findAdjacentSubtree, minimumSpanningTreeFromSubtree } from "./dijkstra.js"
+
+    let data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/tools/tools.json");
+    const toolData = Object.entries(data.tools)
+    toolData.sort((a, b) => a[0].localeCompare(b[0]))
+
+    data = await d3.json("https://raw.githubusercontent.com/Creative-Coding-Map/ccm-published-data/refs/heads/main/techniques/techniques.json");
+    const techniqueData = Object.entries(data.techniques)
+    techniqueData.sort((a, b) => a[0].localeCompare(b[0]))
+
+    const allTags = (toolData.concat(techniqueData)).flatMap((it) => it[1].tags || [])
+    let tags = [...new Set(allTags)]
+    tags.sort()
+
+    const toolNodes = toolData.map((it, idx) => {
+        return {"id": it[0], "name": it[0], "type": "tool", "ccmData": it}
+    })
+
+    const techniqueNodes = techniqueData.map((it, idx) => {
+        return {"id": it[0], "name": it[1].name, "type": "technique", "ccmData": it}
+    })
+
+    let enableToolTagLinks = true;
+    let enableTechniqueTagLinks = true;
+    let enableDependencyLinks = true;
+    let enableSupportLinks = true;
+    let enableTechniqueLinks = true;
+    const activeTags = new Set(allTags)
+    const tagNodes = [...activeTags].map((it, idx) => {
+        return {"id": it, "name": it, "type": "tag"}
+    })
+
+    let nodesById = {}
+
+    function buildGraph(mst) {
+        const links = [];
+        const nodes = toolNodes.concat(tagNodes).concat(techniqueNodes)
+        nodesById = {}
+        toolData.forEach(n => {
+            const tooln = toolNodes.find(it => it.name === n[0])
+            nodesById[n[0]] = tooln
+            if (enableToolTagLinks && !mst) {
+                (n[1].tags || []).forEach(t => {
+                    if (activeTags.has(t)) {
+                        const tn = tagNodes.find(it => it.name === t)
+                        nodesById[t] = tn
+                        const link = {
+                            source: tn.id,
+                            target: tooln.id,
+                            type: "tag",
+                            curvature: 0.0
+                        }
+                        links.push(link)
+                    }
+                });
+            }
+            if (enableDependencyLinks && !mst) {
+                (n[1].dependsOn || []).forEach(t => {
+                    const dependn = toolNodes.find(it => it.name === t)
+                    if (dependn) {
+                        const link = {
+                            source: dependn.id,
+                            target: tooln.id,
+                            type: "dependency",
+                            curvature: 0.0
+                        }
+                        links.push(link)
+                    }
+                })
+            }
+            if (enableSupportLinks && !mst) {
+                (n[1].supports || []).forEach(t => {
+                    const supportn = toolNodes.find(it => it.name === t)
+                    if (supportn) {
+                        const link = {
+                            source: supportn.id,
+                            target: tooln.id,
+                            type: "support",
+                            curvature: 0.0
+                        }
+                        links.push(link)
+                    }
+                })
+            }
+            if (enableTechniqueLinks && !mst) {
+                Object.entries(n[1].actions || {}).forEach(a => {
+                    (a[1].techniques || []).forEach(t => {
+                        const link = {
+                            source: tooln.id,
+                            target: t,
+                            type: "tool-technique"
+                        }
+                        links.push(link)
+                    })
+                })
+            }
+
+
+        })
+        if (mst) {
+            for (let link of mst) {
+                links.push(link)
+            }
+        }
+        techniqueData.forEach(n => {
+            const techniquen = techniqueNodes.find(it => it.id === n[0])
+            nodesById[n[0]] = techniquen
+            if (enableTechniqueTagLinks && !mst) {
+                (n[1].tags || []).forEach(t => {
+                    if (activeTags.has(t)) {
+                        const tagn = tagNodes.find(it => it.name === t)
+                        const link = {
+                            source: tagn.id,
+                            target: techniquen.id,
+                            type: "tag",
+                            curvature: 0.0
+                        }
+                        links.push(link)
+                    }
+                });
+            }
+        })
+
+        for (let link of links) {
+            link.strengthDelta = 1.0
+        }
+
+        return {"nodes": nodes, "links": links}
+    }
+
+
+
+    function buildGraphView() {
+        let cw = document.getElementById('graph').clientWidth
+        let ch = document.getElementById('graph').clientHeight
+
+        d3.select("#graph").html("")
+        const graph = new ForceGraph()
+        (document.getElementById('graph'))
+            .width(cw)
+            .height(ch)
+            .nodeAutoColorBy('type')
+            .graphData(buildGraph())
+            .linkVisibility(link => {
+                return link.strengthDelta >= 0.0
+            })
+
+            //.linkColor(link => (link.type.includes("shortest-path") && "#ff0000" || "#00ff00§" ))
+            .onNodeHover((node, event) => {
+                //if (focusedNode) {
+
+            })
+            .onNodeClick((node, event) => {
+                for (let node of graph.graphData().nodes) {
+                  delete node.fx
+                  delete node.fy
+                }
+                node.fx = node.x
+                node.fy = node.y
+
+
+                let subtree = findAdjacentSubtree(graph.graphData().links, node.id)
+                console.log("subtree")
+                console.log(subtree)
+                let mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subtree)
+
+                let nextGraph = buildGraph(mst.mstEdges)
+                blendGraphs(graph.graphData(), nextGraph)
+
+
+                let s = 0.0
+                graph.d3ReheatSimulation();
+
+                let interval = setInterval(() => {
+                    graph.d3AlphaDecay(0.0001)
+                    const link = d3.forceLink(graph.graphData().links).id((d) => d.id).distance(100).strength(link => {
+
+                        if (link.strengthDelta > 0) {
+                            return s * link.strength;
+                        } else if (link.strengthDelta < 0) {
+                            return 0.0;
+                        } else {
+                            return s * (link.strength||0.0);
+                        }
+
+                    })
+                    s+=0.1
+                    if (s > 1.0) {
+                        s = 1.0
+                        clearInterval(interval)
+                    }
+                    graph.d3Force('link', link)
+
+
+                }, 100)
+
+
+            })
+            .nodeCanvasObject((node, ctx, globalScale) => {
+                let transform = ctx.getTransform()
+                let scale = (transform.a + transform.d) / 2.0
+
+               if (true) {
+                    const label = node.name;
+                    const fontSize = 16 / globalScale;
+                    ctx.font = `${fontSize}px Space Mono`;
+                    const textWidth = ctx.measureText(label).width;
+                    const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
+
+                    ctx.fillStyle = 'bisque';
+                    ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = node.color;
+                    ctx.fillText(label, node.x, node.y);
+                    node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+                }
+            })
+            .nodePointerAreaPaint((node, color, ctx) => {
+                ctx.fillStyle = color;
+                const bckgDimensions = node.__bckgDimensions;
+                bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+            });
+        return graph
+    }
+
+
+
+    let graph = buildGraphView()
+
+
+
+</script>
+</body>
