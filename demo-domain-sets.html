@@ -217,6 +217,67 @@
 
     colorGraph(ogGraph, colorSets)
 
+    function centerGraphOnNode(graph, nodeId) {
+        let subtree = findAdjacentSubtree(graph.graphData().links, nodeId)
+
+        function weight(link, source, target) {
+            const t = `${link.source.type}-${link.target.type}`
+            switch(t) {
+                case 'root-domain':
+                    return 1;
+                case 'domain-domain':
+                case 'tag-tag':
+                    return 0;
+                case 'domain-tool':
+                case 'tool-domain':
+                case 'domain-technique':
+                case 'technique-domain':
+                    return 8;
+                case 'domain-tag':
+                case 'tag-domain':
+                    return 4;
+                case 'tag-tool':
+                case 'tool-tag':
+                case 'tag-technique':
+                case 'technique-tag':
+                    return 5;
+                case 'tool-tool':
+                case 'technique-tool':
+                case 'tool-technique':
+                    return 10;
+                default:
+                    throw new Error(`unknown link type ${t}`)
+            }
+
+        }
+
+        let mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subtree, weight)
+
+        let nextGraph = localBuildGraph(ccmData, nodes, mst.mstEdges)
+        blendGraphs(graph.graphData(), nextGraph)
+
+        let s = 0.0
+        graph.d3ReheatSimulation();
+
+        let interval = setInterval(() => {
+            graph.d3AlphaDecay(0.0001)
+            const link = d3.forceLink(graph.graphData().links).id((d) => d.id).distance(100).strength(link => {
+                if (link.strengthDelta > 0) {
+                    return s * link.strength;
+                } else if (link.strengthDelta < 0) {
+                    return 0.0;
+                } else {
+                    return s * (link.strength || 0.0);
+                }
+            })
+            s += 0.1
+            if (s > 1.0) {
+                s = 1.0
+                clearInterval(interval)
+            }
+            graph.d3Force('link', link)
+        }, 100)
+    }
     function localBuildGraph(ccmData, nodes, mstEdges) {
         let graph = buildGraph(ccmData, nodes, mstEdges)
         graph.links = graph.links.concat(domainGraph.links)
@@ -245,65 +306,7 @@
                 node.fx = node.x
                 node.fy = node.y
 
-                let subtree = findAdjacentSubtree(graph.graphData().links, node.id)
-
-                function weight(link, source, target) {
-                    const t = `${link.source.type}-${link.target.type}`
-                    switch(t) {
-                        case 'root-domain':
-                            return 1;
-                        case 'domain-domain':
-                        case 'tag-tag':
-                            return 0;
-                        case 'domain-tool':
-                        case 'tool-domain':
-                        case 'domain-technique':
-                        case 'technique-domain':
-                            return 8;
-                        case 'domain-tag':
-                        case 'tag-domain':
-                            return 4;
-                        case 'tag-tool':
-                        case 'tool-tag':
-                        case 'tag-technique':
-                        case 'technique-tag':
-                            return 5;
-                        case 'tool-tool':
-                        case 'technique-tool':
-                        case 'tool-technique':
-                            return 10;
-                        default:
-                            throw new Error(`unknown link type ${t}`)
-                    }
-
-                }
-
-                let mst = minimumSpanningTreeFromSubtree(graph.graphData().links, subtree, weight)
-
-                let nextGraph = localBuildGraph(ccmData, nodes, mst.mstEdges)
-                blendGraphs(graph.graphData(), nextGraph)
-
-                let s = 0.0
-                graph.d3ReheatSimulation();
-
-                let interval = setInterval(() => {
-                    graph.d3AlphaDecay(0.0001)
-                    const link = d3.forceLink(graph.graphData().links).id((d) => d.id).distance(100).strength(link => {
-                        if (link.strengthDelta > 0) {
-                            return s * link.strength;
-                        } else if (link.strengthDelta < 0) {
-                            return 0.0;
-                        } else {
-                            return s * (link.strength || 0.0);
-                        }
-                    })
-                    s += 0.1
-                    if (s > 1.0) {
-                        s = 1.0
-                        clearInterval(interval)
-                    }
-                    graph.d3Force('link', link)
-                }, 100)
+                centerGraphOnNode(graph, node.id)
             })
             .nodeCanvasObject((node, ctx, globalScale) => {
                 let transform = ctx.getTransform()
@@ -356,7 +359,7 @@
                     const bckgDimensions = [textWidth, fontSize + 16 / globalScale].map(n => n + fontSize * 0.2); // some padding
 
                     ctx.fillStyle = 'bisque';
-                    ctx.fillRect(node.x - bckgDimensions[0] / 2, 16 / globalScale + node.y - bckgDimensions[1] / 2, ...bckgDimensions);
+                    //ctx.fillRect(node.x - bckgDimensions[0] / 2, 16 / globalScale + node.y - bckgDimensions[1] / 2, ...bckgDimensions);
 
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
@@ -374,5 +377,6 @@
     }
 
     let graph = buildGraphView()
+    setTimeout(()=> centerGraphOnNode(graph, '___root'), 1000)
 </script>
 </body>
